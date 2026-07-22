@@ -1,1 +1,1 @@
-# NeighborLink AI - Backend Application
+# CiviLink AI - Backend Application

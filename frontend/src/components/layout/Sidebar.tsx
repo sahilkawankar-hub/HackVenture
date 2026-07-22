@@ -18,7 +18,7 @@ function Sidebar() {
     <aside className="w-64 border-r border-slate-800 flex flex-col">
       <div className="h-16 flex items-center px-6 border-b border-slate-800">
         <span className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-          NeighborLink AI
+          CiviLink AI
         </span>
       </div>
       <nav className="flex-1 p-4 space-y-1">

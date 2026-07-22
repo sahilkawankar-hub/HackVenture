@@ -4,7 +4,7 @@
 function Home() {
   return (
     <div>
-      <h1>Welcome to NeighborLink AI</h1>
+      <h1>Welcome to CiviLink AI</h1>
       {/* TODO: Implement home dashboard */}
     </div>
   );

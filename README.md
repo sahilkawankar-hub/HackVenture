@@ -1,4 +1,4 @@
-# 🏘️ NeighborLink AI
+# 🏘️ CiviLink AI
 
 > AI-powered hyperlocal community platform for apartments, societies, campuses, and local communities.
 

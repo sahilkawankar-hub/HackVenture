@@ -30,9 +30,9 @@ async def seed_firestore() -> None:
     print("🌱 Seeding Firebase Cloud Firestore collections with test data...")
 
     # 1. Users
-    u1 = create_user_doc("uid-admin-001", "admin@neighborlink.dev", "Aarav Sharma", is_admin=True)
-    u2 = create_user_doc("uid-user-002", "priya@neighborlink.dev", "Priya Patel")
-    u3 = create_user_doc("uid-user-003", "rahul@neighborlink.dev", "Rahul Kumar")
+    u1 = create_user_doc("uid-admin-001", "admin@civilink.dev", "Aarav Sharma", is_admin=True)
+    u2 = create_user_doc("uid-user-002", "priya@civilink.dev", "Priya Patel")
+    u3 = create_user_doc("uid-user-003", "rahul@civilink.dev", "Rahul Kumar")
     for u in [u1, u2, u3]:
         set_document(Collections.USERS, u["id"], u)
     print("   ✅ 3 users created")
@@ -45,7 +45,7 @@ async def seed_firestore() -> None:
     print("   ✅ 2 communities created")
 
     # 3. Posts
-    p1 = create_post_doc(u1["id"], c1["id"], "🎉 Welcome to Greenview Apartments on NeighborLink AI!", category="announcement", is_pinned=True)
+    p1 = create_post_doc(u1["id"], c1["id"], "🎉 Welcome to Greenview Apartments on CiviLink AI!", category="announcement", is_pinned=True)
     p2 = create_post_doc(u2["id"], c1["id"], "Does anyone know a good plumber?", category="help")
     for p in [p1, p2]:
         set_document(Collections.POSTS, p["id"], p)
@@ -72,7 +72,7 @@ async def seed_firestore() -> None:
     print("   ✅ 1 job posting created")
 
     # 8. Notifications
-    n1 = create_notification_doc(u2["id"], "welcome", "Welcome to NeighborLink AI!", "You've joined Greenview Apartments.")
+    n1 = create_notification_doc(u2["id"], "welcome", "Welcome to CiviLink AI!", "You've joined Greenview Apartments.")
     set_document(Collections.NOTIFICATIONS, n1["id"], n1)
     print("   ✅ 1 notification created")
 

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     )
 
     # ── App ──────────────────────────────────────────────
-    APP_NAME: str = "NeighborLink AI"
+    APP_NAME: str = "CiviLink AI"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"

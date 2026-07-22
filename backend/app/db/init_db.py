@@ -28,7 +28,7 @@ def verify_connection() -> bool:
 async def init_db(seed: bool = False) -> None:
     """Run Firestore initialization and optional seed."""
     print("=" * 60)
-    print("  NeighborLink AI — Firebase Firestore Initialization")
+    print("  CiviLink AI — Firebase Firestore Initialization")
     print("=" * 60)
     print()
 

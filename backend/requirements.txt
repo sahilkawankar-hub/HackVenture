@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# NeighborLink AI - Backend Dependencies
+# CiviLink AI - Backend Dependencies
 # ──────────────────────────────────────────────
 
 # ── Core Framework ───────────────────────────

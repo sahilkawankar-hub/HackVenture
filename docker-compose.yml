@@ -6,7 +6,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: neighborlink-backend
+    container_name: civilink-backend
     env_file:
       - ./backend/.env
     ports:
@@ -20,7 +20,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: neighborlink-frontend
+    container_name: civilink-frontend
     ports:
       - "5173:80"
     depends_on:

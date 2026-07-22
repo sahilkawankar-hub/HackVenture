@@ -1,5 +1,5 @@
 """
-NeighborLink AI - FastAPI Application Entry Point
+CiviLink AI - FastAPI Application Entry Point
 
 AI-powered hyperlocal community platform for apartments,
 societies, campuses, and local communities.

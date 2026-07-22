@@ -1,8 +1,8 @@
 {
-  "name": "neighborlink-ai-frontend",
+  "name": "civilink-ai-frontend",
   "private": true,
   "version": "1.0.0",
-  "description": "NeighborLink AI - AI-powered hyperlocal community platform",
+  "description": "CiviLink AI - AI-powered hyperlocal community platform",
   "type": "module",
   "scripts": {
     "dev": "vite",
