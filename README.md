@@ -1,6 +1,6 @@
 # 🏘️ CiviLink AI
 
-> AI-powered hyperlocal community platform for apartments, societies, campuses, and local communities.
+> AI-powered hyperlocal community platform for apartments, societies, campuses, and local communities — powered by **Supabase** and **YOLO AI**.
 
 ---
 
@@ -8,9 +8,9 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🔐 **Google Auth** | Firebase Google Authentication for secure sign-in |
+| 🔐 **Google OAuth** | Supabase Authentication using Google OAuth for secure sign-in |
 | 📰 **Community Feed** | Share posts, comments, and reactions within your community |
-| 👁️ **CivicEye AI** | AI-powered civic issue reporting with image detection (YOLO) |
+| 👁️ **CivicEye AI** | AI-powered civic issue reporting with YOLO object detection & automatic priority rating |
 | 🔍 **Lost & Found** | Report lost/found items with AI-powered semantic matching |
 | 🛒 **Marketplace** | Buy, sell, and trade items locally within your community |
 | 💼 **Local Jobs** | Post and discover hyperlocal job opportunities |
@@ -26,24 +26,24 @@
 - **Vite** — Build tool & dev server
 - **Tailwind CSS** — Utility-first styling
 - **React Router** — Client-side routing
-- **Firebase SDK** — Google Authentication & Storage
+- **@supabase/supabase-js** — Supabase Auth & Storage client
 - **Axios** — HTTP client
 
 ### Backend
-- **FastAPI** — Python async web framework
-- **Firebase Admin SDK** — Auth verification & Firestore ORM/ODM driver
-- **Firebase Cloud Firestore** — Primary document database
-- **Firebase Storage** — Asset storage for images and audio
+- **FastAPI** — Python async web framework for AI processing & REST services
+- **Supabase Python SDK** — PostgreSQL driver, Auth verification, and Storage bucket interface
+- **Supabase PostgreSQL** — Primary relational database (`civic_issues`, `posts`, `users`, etc.)
+- **Supabase Storage** — Asset storage for images (`civic-images` bucket)
 - **Pydantic** — Request/response data validation
 
 ### AI / ML
-- **Ultralytics YOLO** — Object detection (CivicEye)
+- **Ultralytics YOLO** — Object detection (CivicEye vision analysis)
 - **Sentence Transformers** — Semantic similarity (Lost & Found matching)
 - **Hugging Face Transformers** — Text classification & NLP
 
 ### Infrastructure
+- **Supabase** — Authentication, PostgreSQL Database & Storage (`civic-images` bucket)
 - **Docker & Docker Compose** — Containerization
-- **Firebase** — Authentication, Database, & Cloud Storage
 - **Google Maps API** — Geocoding & maps
 
 ---
@@ -55,16 +55,16 @@ HackVenture/
 ├── backend/
 │   ├── app/
 │   │   ├── api/v1/endpoints/     # Route handlers per feature
-│   │   ├── ai/                   # AI/ML model integrations
+│   │   ├── ai/                   # AI/ML model integrations (YOLO)
 │   │   ├── core/                 # Security, dependencies, exceptions
-│   │   ├── db/                   # Firestore init & seed scripts
+│   │   ├── db/                   # Supabase PostgreSQL schema DDL (schema.sql)
 │   │   ├── middleware/           # Rate limiter, etc.
-│   │   ├── models/              # Firestore document schema helpers
+│   │   ├── models/              # Data model structure helpers
 │   │   ├── schemas/             # Pydantic request/response schemas
-│   │   ├── services/            # Business logic layer backed by Firestore
-│   │   ├── utils/               # Firebase Admin, storage, maps helpers
+│   │   ├── services/            # Business logic layer backed by Supabase
+│   │   ├── utils/               # Supabase DB, storage ('civic-images'), maps helpers
 │   │   ├── config.py            # Pydantic Settings configuration
-│   │   ├── database.py          # Firebase Admin SDK & Firestore client init
+│   │   ├── database.py          # Supabase client init
 │   │   └── main.py              # FastAPI app entry point
 │   ├── tests/                   # Pytest test suite
 │   ├── requirements.txt
@@ -74,11 +74,11 @@ HackVenture/
 │   ├── public/
 │   ├── src/
 │   │   ├── api/                 # API service functions per feature
-│   │   ├── components/
-│   │   ├── context/             # React contexts (AuthContext, etc.)
+│   │   ├── components/          # CivicEye, Feed, Marketplace components
+│   │   ├── context/             # React contexts (AuthContext with Supabase)
 │   │   ├── hooks/               # Custom React hooks (useAuth, etc.)
-│   │   ├── lib/                 # Third-party configs (Firebase, Axios, Maps)
-│   │   ├── pages/               # Route page components
+│   │   ├── lib/                 # Supabase client (supabase.ts), Axios
+│   │   ├── pages/               # Route page components (CivicEye, Login, etc.)
 │   │   ├── types/               # TypeScript type definitions
 │   │   ├── utils/               # Helper functions
 │   │   ├── constants/           # App-wide constants
@@ -103,10 +103,17 @@ HackVenture/
 
 - **Node.js** ≥ 18
 - **Python** ≥ 3.11
-- **Firebase Project** (Auth, Firestore, Storage enabled)
+- **Supabase Project** (URL, Anon key, Service Role key, and `civic-images` storage bucket)
 - **Docker** (optional)
 
-### 1. Backend Setup
+### 1. Database Setup (Supabase PostgreSQL)
+
+Execute the schema DDL in your Supabase SQL Editor:
+```sql
+-- See backend/app/db/schema.sql for the complete DDL script.
+```
+
+### 2. Backend Setup
 
 ```bash
 cd backend
@@ -120,19 +127,16 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your Firebase configuration
+# Edit .env with your Supabase URL & Key
 
-# Seed Firestore database (optional)
-python -m app.db.init_db --seed
-
-# Start the server
+# Start the FastAPI AI server
 uvicorn app.main:app --reload
 ```
 
-Backend API available at `http://localhost:8000`
+Backend API available at `http://localhost:8000`  
 Swagger API docs at `http://localhost:8000/api/docs`
 
-### 2. Frontend Setup
+### 3. Frontend Setup
 
 ```bash
 cd frontend
@@ -142,7 +146,7 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your Firebase project keys
+# Edit .env with your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
 
 # Start dev server
 npm run dev

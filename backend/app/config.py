@@ -31,12 +31,12 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────
     CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
-    # ── Firebase Admin SDK ───────────────────────────────
-    FIREBASE_PROJECT_ID: str = ""
-    FIREBASE_PRIVATE_KEY: str = ""
-    FIREBASE_CLIENT_EMAIL: str = ""
-    FIREBASE_STORAGE_BUCKET: str = ""
-    FIREBASE_CREDENTIALS_PATH: Optional[str] = None
+    # ── Supabase Infrastructure ──────────────────────────
+    SUPABASE_URL: str = "https://xyzcompany.supabase.co"
+    SUPABASE_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy_anon_key"
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
+    SUPABASE_JWT_SECRET: str = "your-supabase-jwt-secret"
+    SUPABASE_CIVIC_IMAGES_BUCKET: str = "civic-images"
 
     # ── Google Maps ──────────────────────────────────────
     GOOGLE_MAPS_API_KEY: str = ""

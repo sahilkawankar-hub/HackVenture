@@ -1,25 +1,37 @@
-import { signInWithPopup, signOut, GoogleAuthProvider } from "firebase/auth";
-import { auth } from "../lib/firebase";
+import { supabase } from "../lib/supabase";
 import { useAuthContext } from "../context/AuthContext";
 
 /**
- * Custom hook for authentication operations.
+ * Custom hook for Supabase authentication operations.
  */
 export function useAuth() {
-  const { user, loading, token } = useAuthContext();
+  const { user, session, loading, token } = useAuthContext();
 
+  /**
+   * Trigger Google OAuth sign-in via Supabase Auth
+   */
   const loginWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    return result.user;
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (error) throw error;
+    return data;
   };
 
+  /**
+   * Sign out user from Supabase session
+   */
   const logout = async () => {
-    await signOut(auth);
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   };
 
   return {
     user,
+    session,
     loading,
     token,
     isAuthenticated: !!user,
