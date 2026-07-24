@@ -10,14 +10,23 @@ type AuthMode = "login" | "signup";
  *
  * Features:
  *  - Portal toggle: User Portal vs Admin Portal
+ *  - Quick Demo Access (One-click dashboard preview)
  *  - Google OAuth via Supabase
  *  - Email + Password sign-in / sign-up via Supabase Auth
- *  - Auto-redirect if already authenticated
- *  - Route to / (user) or /admin (admin) after login
+ *  - Auto-redirect if authenticated
  */
 function Login() {
   const navigate = useNavigate();
-  const { loginWithGoogle, loginWithEmail, signUpWithEmail, isAuthenticated, role, setRole, loading } = useAuth();
+  const {
+    loginWithGoogle,
+    loginWithEmail,
+    signUpWithEmail,
+    loginAsDemo,
+    isAuthenticated,
+    role,
+    setRole,
+    loading,
+  } = useAuth();
 
   const [portal, setPortal] = useState<UserRole>(role);
   const [mode, setMode] = useState<AuthMode>("login");
@@ -41,6 +50,11 @@ function Login() {
     setRole(newPortal);
     setError(null);
     setSuccessMsg(null);
+  };
+
+  const handleDemoAccess = () => {
+    loginAsDemo(portal);
+    navigate(portal === "admin" ? "/admin" : "/", { replace: true });
   };
 
   /* ── Google OAuth ──────────────────────────────────────────────────── */
@@ -89,7 +103,6 @@ function Login() {
     }
   };
 
-  // Don't render while checking session
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8f9ff] flex items-center justify-center">
@@ -102,7 +115,6 @@ function Login() {
     <div className="min-h-screen bg-[#f8f9ff] flex items-stretch">
       {/* ── Left panel — branding ───────────────────────────────────────── */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#004ac6] via-[#2563eb] to-[#3e3fcc] flex-col justify-between p-12 relative overflow-hidden">
-        {/* Decorative blobs */}
         <div className="absolute -top-20 -left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-[#3e3fcc]/40 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
@@ -148,7 +160,6 @@ function Login() {
             and let AI prioritize your community's needs — all in one place.
           </p>
 
-          {/* Feature chips */}
           <div className="flex flex-wrap gap-2 pt-2">
             {[
               { icon: "camera_alt", label: "CivicEye AI" },
@@ -171,7 +182,6 @@ function Login() {
           </div>
         </div>
 
-        {/* Bottom footnote */}
         <div className="relative z-10 flex items-center gap-2 text-white/40 text-xs">
           <span className="material-symbols-outlined text-[14px]">lock</span>
           Secured by Supabase Auth &amp; PostgreSQL RLS
@@ -180,7 +190,7 @@ function Login() {
 
       {/* ── Right panel — auth form ─────────────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-[420px] space-y-6">
+        <div className="w-full max-w-[420px] space-y-5">
 
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-3 mb-2">
@@ -199,13 +209,14 @@ function Login() {
           <div className="bg-[#e5eeff] p-1.5 rounded-2xl flex gap-1.5">
             <button
               onClick={() => handlePortalSwitch("user")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-bold transition-all ${
                 portal === "user"
                   ? "bg-white text-[#004ac6] shadow-md"
                   : "text-[#434655] hover:text-[#0b1c30]"
               }`}
             >
-              <span className="material-symbols-outlined text-[20px]"
+              <span
+                className="material-symbols-outlined text-[20px]"
                 style={portal === "user" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 person
@@ -214,13 +225,14 @@ function Login() {
             </button>
             <button
               onClick={() => handlePortalSwitch("admin")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-bold transition-all ${
                 portal === "admin"
                   ? "bg-white text-[#004ac6] shadow-md"
                   : "text-[#434655] hover:text-[#0b1c30]"
               }`}
             >
-              <span className="material-symbols-outlined text-[20px]"
+              <span
+                className="material-symbols-outlined text-[20px]"
                 style={portal === "admin" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 admin_panel_settings
@@ -238,7 +250,7 @@ function Login() {
                   : "Welcome back"
                 : "Create account"}
             </h2>
-            <p className="text-[13px] text-[#434655] mt-1">
+            <p className="text-[13px] text-[#434655] mt-0.5">
               {mode === "login"
                 ? portal === "admin"
                   ? "Sign in to access the admin & moderation dashboard."
@@ -247,48 +259,40 @@ function Login() {
             </p>
           </div>
 
-          {/* Portal info badge */}
-          <div className={`flex items-center gap-3 p-3.5 rounded-2xl border ${
-            portal === "admin"
-              ? "bg-purple-50 border-purple-200"
-              : "bg-blue-50 border-blue-200"
-          }`}>
-            <span className={`material-symbols-outlined text-[20px] ${
-              portal === "admin" ? "text-purple-600" : "text-[#004ac6]"
-            }`}
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              {portal === "admin" ? "shield_person" : "groups"}
+          {/* ── DEMO INSTANT ACCESS BUTTON ─────────────────────────────── */}
+          <button
+            type="button"
+            onClick={handleDemoAccess}
+            className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-[13px] font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 border border-emerald-400/30"
+          >
+            <span className="material-symbols-outlined text-[18px]">bolt</span>
+            Explore Demo {portal === "admin" ? "Admin Panel" : "Dashboard"} (Instant Access)
+          </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-4 py-1">
+            <div className="flex-1 h-px bg-[#c3c6d7]" />
+            <span className="text-[11px] text-[#737686] font-semibold uppercase tracking-wider">
+              Or sign in with credentials
             </span>
-            <div>
-              <p className={`text-[12px] font-bold ${
-                portal === "admin" ? "text-purple-800" : "text-[#004ac6]"
-              }`}>
-                {portal === "admin" ? "Admin & Governance Portal" : "Community Resident Portal"}
-              </p>
-              <p className="text-[11px] text-[#434655]">
-                {portal === "admin"
-                  ? "Access analytics, complaint management, user moderation & reports."
-                  : "Access CivicEye AI, Feed, Marketplace, Jobs, Lost & Found, and SOS."}
-              </p>
-            </div>
+            <div className="flex-1 h-px bg-[#c3c6d7]" />
           </div>
 
           {/* ── Error / Success banners ─────────────────────────────────── */}
           {error && (
-            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
+            <div className="flex items-center gap-3 p-3.5 bg-red-50 border border-red-200 rounded-2xl">
               <span className="material-symbols-outlined text-red-500 text-[18px] flex-shrink-0">
                 error
               </span>
-              <p className="text-[13px] text-red-700">{error}</p>
+              <p className="text-[12px] text-red-700">{error}</p>
             </div>
           )}
           {successMsg && (
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+            <div className="flex items-center gap-3 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl">
               <span className="material-symbols-outlined text-emerald-500 text-[18px] flex-shrink-0">
                 check_circle
               </span>
-              <p className="text-[13px] text-emerald-700">{successMsg}</p>
+              <p className="text-[12px] text-emerald-700">{successMsg}</p>
             </div>
           )}
 
@@ -297,12 +301,12 @@ function Login() {
             id="google-signin-btn"
             onClick={handleGoogleLogin}
             disabled={isGoogleLoading}
-            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white border border-[#c3c6d7] rounded-2xl text-[14px] font-semibold text-[#0b1c30] hover:bg-[#f8f9ff] hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white border border-[#c3c6d7] rounded-2xl text-[13px] font-semibold text-[#0b1c30] hover:bg-[#f8f9ff] hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
             {isGoogleLoading ? (
-              <span className="w-5 h-5 border-2 border-[#004ac6]/30 border-t-[#004ac6] rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-[#004ac6]/30 border-t-[#004ac6] rounded-full animate-spin" />
             ) : (
-              <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
@@ -312,25 +316,15 @@ function Login() {
             <span>Continue with Google</span>
           </button>
 
-          {/* Divider */}
-          <div className="flex items-center gap-4">
-            <div className="flex-1 h-px bg-[#c3c6d7]" />
-            <span className="text-[12px] text-[#737686] font-medium">or</span>
-            <div className="flex-1 h-px bg-[#c3c6d7]" />
-          </div>
-
           {/* ── Email / Password form ───────────────────────────────────── */}
-          <form onSubmit={handleEmailAuth} className="space-y-4">
+          <form onSubmit={handleEmailAuth} className="space-y-3.5">
             {/* Email */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="email"
-                className="text-[13px] font-semibold text-[#0b1c30]"
-              >
+            <div className="space-y-1">
+              <label htmlFor="email" className="text-[12px] font-semibold text-[#0b1c30]">
                 Email address
               </label>
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#737686] text-[18px]">
+                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#737686] text-[18px]">
                   mail
                 </span>
                 <input
@@ -340,32 +334,26 @@ function Login() {
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(null); }}
                   placeholder={portal === "admin" ? "admin@civilink.ai" : "you@example.com"}
-                  className="w-full pl-11 pr-4 py-3.5 bg-white border border-[#c3c6d7] rounded-2xl text-[14px] text-[#0b1c30] placeholder:text-[#737686] focus:outline-none focus:ring-2 focus:ring-[#004ac6]/25 focus:border-[#004ac6] transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-[#c3c6d7] rounded-2xl text-[13px] text-[#0b1c30] placeholder:text-[#737686] focus:outline-none focus:ring-2 focus:ring-[#004ac6]/25 focus:border-[#004ac6] transition-all"
                   required
                 />
               </div>
             </div>
 
             {/* Password */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label
-                  htmlFor="password"
-                  className="text-[13px] font-semibold text-[#0b1c30]"
-                >
+                <label htmlFor="password" className="text-[12px] font-semibold text-[#0b1c30]">
                   Password
                 </label>
                 {mode === "login" && (
-                  <button
-                    type="button"
-                    className="text-[12px] text-[#004ac6] hover:underline font-semibold"
-                  >
+                  <button type="button" className="text-[11px] text-[#004ac6] hover:underline font-semibold">
                     Forgot password?
                   </button>
                 )}
               </div>
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#737686] text-[18px]">
+                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#737686] text-[18px]">
                   lock
                 </span>
                 <input
@@ -375,14 +363,13 @@ function Login() {
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(null); }}
                   placeholder={mode === "signup" ? "Min. 6 characters" : "Enter your password"}
-                  className="w-full pl-11 pr-12 py-3.5 bg-white border border-[#c3c6d7] rounded-2xl text-[14px] text-[#0b1c30] placeholder:text-[#737686] focus:outline-none focus:ring-2 focus:ring-[#004ac6]/25 focus:border-[#004ac6] transition-all"
+                  className="w-full pl-10 pr-12 py-3 bg-white border border-[#c3c6d7] rounded-2xl text-[13px] text-[#0b1c30] placeholder:text-[#737686] focus:outline-none focus:ring-2 focus:ring-[#004ac6]/25 focus:border-[#004ac6] transition-all"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737686] hover:text-[#0b1c30] transition-colors"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#737686] hover:text-[#0b1c30] transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">
                     {showPassword ? "visibility_off" : "visibility"}
@@ -396,9 +383,9 @@ function Login() {
               id="email-auth-btn"
               type="submit"
               disabled={isEmailLoading}
-              className={`w-full py-3.5 font-bold text-[14px] rounded-2xl transition-all active:scale-[0.98] shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+              className={`w-full py-3 font-bold text-[13px] rounded-2xl transition-all active:scale-[0.98] shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                 portal === "admin"
-                  ? "bg-gradient-to-r from-purple-700 to-[#3e3fcc] hover:from-purple-600 hover:to-[#4e4fd6] text-white"
+                  ? "bg-gradient-to-r from-purple-700 to-[#3e3fcc] text-white"
                   : "bg-[#004ac6] hover:bg-[#2563eb] text-white"
               }`}
             >
@@ -412,13 +399,13 @@ function Login() {
                 </span>
               )}
               {mode === "login"
-                ? portal === "admin" ? "Sign In as Admin" : "Sign In"
+                ? portal === "admin" ? "Sign In as Admin" : "Sign In with Email"
                 : "Create Account"}
             </button>
           </form>
 
-          {/* ── Mode toggle ─────────────────────────────────────────────── */}
-          <p className="text-center text-[13px] text-[#434655]">
+          {/* Mode toggle */}
+          <p className="text-center text-[12px] text-[#434655]">
             {mode === "login" ? (
               <>
                 Don't have an account?{" "}
@@ -442,18 +429,6 @@ function Login() {
                 </button>
               </>
             )}
-          </p>
-
-          {/* ── Terms ───────────────────────────────────────────────────── */}
-          <p className="text-center text-[11px] text-[#737686] leading-relaxed">
-            By continuing you agree to the{" "}
-            <span className="text-[#004ac6] cursor-pointer hover:underline">
-              Terms of Service
-            </span>{" "}
-            and{" "}
-            <span className="text-[#004ac6] cursor-pointer hover:underline">
-              Privacy Policy
-            </span>
           </p>
         </div>
       </div>

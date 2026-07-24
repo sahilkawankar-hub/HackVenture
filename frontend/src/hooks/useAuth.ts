@@ -5,7 +5,7 @@ import { useAuthContext, UserRole } from "../context/AuthContext";
  * Custom hook for Supabase authentication operations.
  */
 export function useAuth() {
-  const { user, session, loading, token, role, setRole } = useAuthContext();
+  const { user, session, loading, token, role, setRole, isDemo, loginAsDemo } = useAuthContext();
 
   /**
    * Trigger Google OAuth sign-in via Supabase Auth
@@ -49,9 +49,13 @@ export function useAuth() {
    * Sign out user from Supabase session
    */
   const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    localStorage.removeItem("civilink_demo");
     localStorage.removeItem("civilink_role");
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      // Ignore if supabase is not connected
+    }
   };
 
   return {
@@ -61,6 +65,8 @@ export function useAuth() {
     token,
     role,
     setRole,
+    isDemo,
+    loginAsDemo,
     isAuthenticated: !!user,
     isAdmin: role === "admin",
     loginWithGoogle,
