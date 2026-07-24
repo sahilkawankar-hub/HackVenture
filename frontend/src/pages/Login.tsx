@@ -1,23 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { supabase } from "../lib/supabase";
+import { UserRole } from "../context/AuthContext";
 
 type AuthMode = "login" | "signup";
 
 /**
- * Login page — CiviLink AI Stitch design.
+ * Login page — CiviLink AI
  *
- * Supports:
- *  - Google OAuth via Supabase (existing useAuth hook)
+ * Features:
+ *  - Portal toggle: User Portal vs Admin Portal
+ *  - Google OAuth via Supabase
  *  - Email + Password sign-in / sign-up via Supabase Auth
- *
- * Detects placeholder Supabase config and shows a setup banner.
+ *  - Auto-redirect if already authenticated
+ *  - Route to / (user) or /admin (admin) after login
  */
 function Login() {
   const navigate = useNavigate();
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, loginWithEmail, signUpWithEmail, isAuthenticated, role, setRole, loading } = useAuth();
 
+  const [portal, setPortal] = useState<UserRole>(role);
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,21 +29,22 @@ function Login() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  /* ── Placeholder config detection ─────────────────────────────────── */
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
-  const isPlaceholderConfig =
-    !supabaseUrl ||
-    supabaseUrl.includes("your-project") ||
-    supabaseUrl.includes("xyzcompany");
+  // Auto-redirect if already authenticated
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate(role === "admin" ? "/admin" : "/", { replace: true });
+    }
+  }, [loading, isAuthenticated, role, navigate]);
+
+  const handlePortalSwitch = (newPortal: UserRole) => {
+    setPortal(newPortal);
+    setRole(newPortal);
+    setError(null);
+    setSuccessMsg(null);
+  };
 
   /* ── Google OAuth ──────────────────────────────────────────────────── */
   const handleGoogleLogin = async () => {
-    if (isPlaceholderConfig) {
-      setError(
-        "Supabase is not configured. Update VITE_SUPABASE_URL in frontend/.env"
-      );
-      return;
-    }
     setIsGoogleLoading(true);
     setError(null);
     try {
@@ -60,21 +63,24 @@ function Login() {
       setError("Please enter your email and password.");
       return;
     }
+    if (mode === "signup" && password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
     setIsEmailLoading(true);
     setError(null);
     setSuccessMsg(null);
 
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        navigate("/");
+        await loginWithEmail(email, password);
+        navigate(portal === "admin" ? "/admin" : "/", { replace: true });
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+        await signUpWithEmail(email, password);
         setSuccessMsg(
-          "Account created! Check your email for a confirmation link."
+          "Account created! Check your email for a confirmation link, then sign in."
         );
+        setMode("login");
       }
     } catch (err: any) {
       setError(err?.message || "Authentication failed. Please try again.");
@@ -82,6 +88,15 @@ function Login() {
       setIsEmailLoading(false);
     }
   };
+
+  // Don't render while checking session
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f8f9ff] flex items-center justify-center">
+        <div className="w-8 h-8 border-3 border-[#004ac6]/20 border-t-[#004ac6] rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8f9ff] flex items-stretch">
@@ -112,7 +127,6 @@ function Login() {
 
         {/* Centre hero content */}
         <div className="relative z-10 space-y-6">
-          {/* AI shimmer badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/15 rounded-full">
             <span
               className="material-symbols-outlined text-white text-[16px]"
@@ -166,7 +180,7 @@ function Login() {
 
       {/* ── Right panel — auth form ─────────────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-[400px] space-y-7">
+        <div className="w-full max-w-[420px] space-y-6">
 
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-3 mb-2">
@@ -181,42 +195,84 @@ function Login() {
             <h1 className="text-lg font-bold text-[#004ac6]">CiviLink AI</h1>
           </div>
 
+          {/* ── Portal Toggle (User / Admin) ────────────────────────────── */}
+          <div className="bg-[#e5eeff] p-1.5 rounded-2xl flex gap-1.5">
+            <button
+              onClick={() => handlePortalSwitch("user")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold transition-all ${
+                portal === "user"
+                  ? "bg-white text-[#004ac6] shadow-md"
+                  : "text-[#434655] hover:text-[#0b1c30]"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]"
+                style={portal === "user" ? { fontVariationSettings: "'FILL' 1" } : undefined}
+              >
+                person
+              </span>
+              User Portal
+            </button>
+            <button
+              onClick={() => handlePortalSwitch("admin")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold transition-all ${
+                portal === "admin"
+                  ? "bg-white text-[#004ac6] shadow-md"
+                  : "text-[#434655] hover:text-[#0b1c30]"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]"
+                style={portal === "admin" ? { fontVariationSettings: "'FILL' 1" } : undefined}
+              >
+                admin_panel_settings
+              </span>
+              Admin Panel
+            </button>
+          </div>
+
           {/* Header */}
           <div>
-            <h2 className="text-[28px] font-bold text-[#0b1c30] tracking-tight">
-              {mode === "login" ? "Welcome back" : "Create account"}
-            </h2>
-            <p className="text-[14px] text-[#434655] mt-1">
+            <h2 className="text-[26px] font-bold text-[#0b1c30] tracking-tight">
               {mode === "login"
-                ? "Sign in to your community dashboard."
+                ? portal === "admin"
+                  ? "Admin Sign In"
+                  : "Welcome back"
+                : "Create account"}
+            </h2>
+            <p className="text-[13px] text-[#434655] mt-1">
+              {mode === "login"
+                ? portal === "admin"
+                  ? "Sign in to access the admin & moderation dashboard."
+                  : "Sign in to your community dashboard."
                 : "Join your neighborhood on CiviLink AI."}
             </p>
           </div>
 
-          {/* ── Placeholder config warning ──────────────────────────────── */}
-          {isPlaceholderConfig && (
-            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-              <span className="material-symbols-outlined text-amber-500 text-[20px] flex-shrink-0 mt-0.5">
-                warning
-              </span>
-              <div>
-                <p className="text-[13px] font-bold text-amber-800">
-                  Supabase Setup Needed
-                </p>
-                <p className="text-[12px] text-amber-700 mt-0.5 leading-relaxed">
-                  Update{" "}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-[11px]">
-                    VITE_SUPABASE_URL
-                  </code>{" "}
-                  and{" "}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-[11px]">
-                    VITE_SUPABASE_ANON_KEY
-                  </code>{" "}
-                  in <code className="font-mono text-[11px]">frontend/.env</code>
-                </p>
-              </div>
+          {/* Portal info badge */}
+          <div className={`flex items-center gap-3 p-3.5 rounded-2xl border ${
+            portal === "admin"
+              ? "bg-purple-50 border-purple-200"
+              : "bg-blue-50 border-blue-200"
+          }`}>
+            <span className={`material-symbols-outlined text-[20px] ${
+              portal === "admin" ? "text-purple-600" : "text-[#004ac6]"
+            }`}
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              {portal === "admin" ? "shield_person" : "groups"}
+            </span>
+            <div>
+              <p className={`text-[12px] font-bold ${
+                portal === "admin" ? "text-purple-800" : "text-[#004ac6]"
+              }`}>
+                {portal === "admin" ? "Admin & Governance Portal" : "Community Resident Portal"}
+              </p>
+              <p className="text-[11px] text-[#434655]">
+                {portal === "admin"
+                  ? "Access analytics, complaint management, user moderation & reports."
+                  : "Access CivicEye AI, Feed, Marketplace, Jobs, Lost & Found, and SOS."}
+              </p>
             </div>
-          )}
+          </div>
 
           {/* ── Error / Success banners ─────────────────────────────────── */}
           {error && (
@@ -246,7 +302,6 @@ function Login() {
             {isGoogleLoading ? (
               <span className="w-5 h-5 border-2 border-[#004ac6]/30 border-t-[#004ac6] rounded-full animate-spin" />
             ) : (
-              /* Google logo SVG */
               <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -284,7 +339,7 @@ function Login() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(null); }}
-                  placeholder="you@example.com"
+                  placeholder={portal === "admin" ? "admin@civilink.ai" : "you@example.com"}
                   className="w-full pl-11 pr-4 py-3.5 bg-white border border-[#c3c6d7] rounded-2xl text-[14px] text-[#0b1c30] placeholder:text-[#737686] focus:outline-none focus:ring-2 focus:ring-[#004ac6]/25 focus:border-[#004ac6] transition-all"
                   required
                 />
@@ -319,7 +374,7 @@ function Login() {
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(null); }}
-                  placeholder={mode === "signup" ? "Min. 8 characters" : "Enter your password"}
+                  placeholder={mode === "signup" ? "Min. 6 characters" : "Enter your password"}
                   className="w-full pl-11 pr-12 py-3.5 bg-white border border-[#c3c6d7] rounded-2xl text-[14px] text-[#0b1c30] placeholder:text-[#737686] focus:outline-none focus:ring-2 focus:ring-[#004ac6]/25 focus:border-[#004ac6] transition-all"
                   required
                 />
@@ -341,16 +396,24 @@ function Login() {
               id="email-auth-btn"
               type="submit"
               disabled={isEmailLoading}
-              className="w-full py-3.5 bg-[#004ac6] hover:bg-[#2563eb] text-white font-bold text-[14px] rounded-2xl transition-all active:scale-[0.98] shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className={`w-full py-3.5 font-bold text-[14px] rounded-2xl transition-all active:scale-[0.98] shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                portal === "admin"
+                  ? "bg-gradient-to-r from-purple-700 to-[#3e3fcc] hover:from-purple-600 hover:to-[#4e4fd6] text-white"
+                  : "bg-[#004ac6] hover:bg-[#2563eb] text-white"
+              }`}
             >
               {isEmailLoading ? (
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <span className="material-symbols-outlined text-[18px]">
-                  {mode === "login" ? "login" : "person_add"}
+                  {mode === "login"
+                    ? portal === "admin" ? "admin_panel_settings" : "login"
+                    : "person_add"}
                 </span>
               )}
-              {mode === "login" ? "Sign In" : "Create Account"}
+              {mode === "login"
+                ? portal === "admin" ? "Sign In as Admin" : "Sign In"
+                : "Create Account"}
             </button>
           </form>
 

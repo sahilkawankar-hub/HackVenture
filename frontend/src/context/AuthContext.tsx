@@ -2,11 +2,15 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 
+export type UserRole = "user" | "admin";
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   token: string | null;
+  role: UserRole;
+  setRole: (role: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -14,6 +18,8 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   token: null,
+  role: "user",
+  setRole: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -21,6 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
+  const [role, setRole] = useState<UserRole>(() => {
+    // Persist role selection across refreshes
+    return (localStorage.getItem("civilink_role") as UserRole) || "user";
+  });
+
+  const handleSetRole = (newRole: UserRole) => {
+    setRole(newRole);
+    localStorage.setItem("civilink_role", newRole);
+  };
 
   useEffect(() => {
     // Fetch active session from Supabase Auth
@@ -43,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, token }}>
+    <AuthContext.Provider value={{ user, session, loading, token, role, setRole: handleSetRole }}>
       {children}
     </AuthContext.Provider>
   );
