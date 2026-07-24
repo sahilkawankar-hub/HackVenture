@@ -8,6 +8,8 @@ import CivicEye from "./pages/CivicEye";
 import LostFound from "./pages/LostFound";
 import Marketplace from "./pages/Marketplace";
 import Jobs from "./pages/Jobs";
+import SOS from "./pages/SOS";
+import Settings from "./pages/Settings";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -18,11 +20,13 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/feed" element={<Feed />} />
         <Route path="/civic-eye" element={<CivicEye />} />
+        <Route path="/feed" element={<Feed />} />
         <Route path="/lost-found" element={<LostFound />} />
         <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/jobs" element={<Jobs />} />
+        <Route path="/sos" element={<SOS />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="*" element={<NotFound />} />
