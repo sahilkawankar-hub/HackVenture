@@ -1,8 +1,8 @@
 """
 CiviLink AI - FastAPI Application Entry Point
 
-AI-powered hyperlocal community platform powered by Supabase PostgreSQL,
-Supabase Storage, and Ultralytics YOLO vision models.
+AI-powered hyperlocal community platform backed by Supabase PostgreSQL,
+Supabase Storage, and a HuggingFace Road Damage YOLO vision model.
 """
 
 from contextlib import asynccontextmanager
@@ -19,18 +19,35 @@ from app.middleware.rate_limiter import RateLimiterMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup and shutdown events."""
-    # Startup - Initialize Supabase Client
+    # ── Startup ──────────────────────────────────────────────────────────────
+    # 1. Supabase client
     try:
         init_supabase()
         print("[OK] Supabase infrastructure initialized successfully.")
-    except Exception as e:
-        print(f"[WARN] Supabase initialization warning: {e}")
+    except Exception as exc:
+        print(f"[WARN] Supabase initialization warning: {exc}")
+
+    # 2. Pre-import the AI module so the background loader thread starts NOW,
+    #    giving the Road Damage model the maximum time to download before the
+    #    first /detect request arrives.
+    try:
+        from app.ai.civic_eye_model import civic_eye_detector  # noqa: F401
+        print("[INFO] CivicEye AI: Background model loader thread started.")
+    except Exception as exc:
+        print(f"[WARN] CivicEye AI loader import failed: {exc}")
+
     yield
+    # ── Shutdown ──────────────────────────────────────────────────────────────
+    print("[INFO] CiviLink AI shutting down.")
 
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="AI-powered hyperlocal community platform backed by Supabase",
+    description=(
+        "AI-powered hyperlocal community platform backed by Supabase. "
+        "Road damage and civic issue detection powered by "
+        "nsr51324/Road_Damage_Object_Detection (HuggingFace YOLOv8)."
+    ),
     version=settings.APP_VERSION,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -59,7 +76,8 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint with Supabase connectivity status."""
+    """Health check endpoint with Supabase connectivity and AI model status."""
+    # Supabase status
     supabase_status = "connected"
     try:
         client = get_supabase_client()
@@ -68,10 +86,21 @@ async def health_check():
     except Exception:
         supabase_status = "disconnected"
 
+    # AI model status
+    try:
+        from app.ai.civic_eye_model import civic_eye_detector
+        ai_status = civic_eye_detector.get_status()
+    except Exception:
+        ai_status = {"is_ready": False, "model_source": "unavailable"}
+
     return {
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "database": f"supabase_postgresql ({supabase_status})",
         "storage_bucket": settings.SUPABASE_CIVIC_IMAGES_BUCKET,
+        "ai_model": {
+            "is_ready": ai_status.get("is_ready", False),
+            "model_source": ai_status.get("model_source", "unknown"),
+        },
     }

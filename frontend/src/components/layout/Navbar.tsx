@@ -1,63 +1,128 @@
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { Search, Moon, Sun, Plus, Bell } from "lucide-react";
 
 /**
- * Top navigation bar — Stitch AI design.
- * Search, notifications badge, help, and New Request CTA → /civic-eye.
+ * Top navigation bar — CiviLink AI premium design.
+ * Search, dark mode toggle, notifications, and New Request CTA.
  */
 function Navbar() {
   const navigate = useNavigate();
-  const [showNotifDot] = useState(true);
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains("dark")
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Sync dark mode class on <html>
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("civilink_theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("civilink_theme", "light");
+    }
+  }, [isDark]);
+
+  // Initialize theme from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem("civilink_theme");
+    if (stored === "dark") {
+      document.documentElement.classList.add("dark");
+      setIsDark(true);
+    }
+  }, []);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/feed?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
   return (
-    <header className="h-16 w-full sticky top-0 z-40 bg-[#f8f9ff]/80 backdrop-blur-md border-b border-[#c3c6d7]/50 px-6 flex items-center justify-between gap-4">
+    <header
+      className="h-14 w-full sticky top-0 z-40 px-6 flex items-center justify-between gap-4 transition-colors duration-300"
+      style={{
+        background: "rgba(var(--bg-sidebar-rgb, 248, 250, 255), 0.85)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderBottom: "1px solid var(--border-color)",
+        backgroundColor: "color-mix(in srgb, var(--bg-sidebar) 85%, transparent)",
+      }}
+    >
       {/* ── Search ──────────────────────────────────────────────────────── */}
-      <div className="relative w-full max-w-md">
-        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#737686] text-[20px]">
-          search
-        </span>
+      <form onSubmit={handleSearch} className="relative w-full max-w-md">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
         <input
+          ref={searchRef}
           type="text"
-          placeholder="Search for local help, items, or news..."
-          className="w-full pl-12 pr-4 py-2 bg-[#e5eeff] border-none rounded-full text-sm text-[#0b1c30] placeholder:text-[#737686] focus:outline-none focus:ring-2 focus:ring-[#004ac6]/20 transition-all"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search community, items, or news..."
+          className="w-full pl-10 pr-4 py-2 rounded-full text-[13px] transition-all outline-none"
+          style={{
+            background: "var(--bg-input)",
+            border: "1.5px solid var(--border-color)",
+            color: "var(--text-primary)",
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = "var(--border-focus)";
+            e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "var(--border-color)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
         />
-      </div>
+      </form>
 
       {/* ── Right Actions ────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 flex-shrink-0">
-        {/* Notifications */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+
+        {/* Dark Mode Toggle */}
         <button
-          aria-label="Notifications"
-          className="p-2 rounded-full hover:bg-[#d3e4fe]/50 transition-colors relative"
+          onClick={() => setIsDark((d) => !d)}
+          aria-label="Toggle dark mode"
+          className="p-2 rounded-full transition-all hover:bg-slate-100 dark:hover:bg-slate-800 text-[#475569] dark:text-slate-400"
         >
-          <span className="material-symbols-outlined text-[#434655] text-[22px]">
-            notifications
-          </span>
-          {showNotifDot && (
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-[#f8f9ff]" />
-          )}
+          {isDark
+            ? <Sun className="w-4.5 h-4.5 w-[18px] h-[18px]" />
+            : <Moon className="w-[18px] h-[18px]" />
+          }
         </button>
 
-        {/* Help */}
+        {/* Notifications */}
         <button
-          aria-label="Help"
-          className="p-2 rounded-full hover:bg-[#d3e4fe]/50 transition-colors"
+          onClick={() => navigate("/notifications")}
+          aria-label="Notifications"
+          className="p-2 rounded-full transition-all hover:bg-slate-100 dark:hover:bg-slate-800 relative text-[#475569] dark:text-slate-400"
         >
-          <span className="material-symbols-outlined text-[#434655] text-[22px]">
-            help_outline
-          </span>
+          <Bell className="w-[18px] h-[18px]" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900" />
         </button>
 
         {/* Divider */}
-        <div className="h-8 w-px bg-[#c3c6d7] mx-1" />
+        <div className="h-6 w-px bg-[#e2e8f0] dark:bg-slate-700 mx-1" />
 
         {/* New Request CTA */}
         <button
           id="new-request-btn"
           onClick={() => navigate("/civic-eye")}
-          className="bg-[#004ac6] hover:bg-[#2563eb] text-white px-5 py-2 rounded-full font-semibold text-sm transition-all active:scale-95 flex items-center gap-2 shadow-sm hover:shadow-md"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full font-semibold text-[13px] text-white transition-all active:scale-95 shadow-sm"
+          style={{
+            background: "linear-gradient(135deg, #1d4ed8, #2563eb)",
+            boxShadow: "0 2px 12px rgba(37,99,235,0.35)",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(37,99,235,0.5)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 2px 12px rgba(37,99,235,0.35)";
+          }}
         >
-          <span className="material-symbols-outlined text-[18px]">add</span>
+          <Plus className="w-4 h-4" />
           New Request
         </button>
       </div>

@@ -1,67 +1,62 @@
 """
-FastAPI dependency injection functions.
-
-Shared dependencies used across API endpoints.
+FastAPI dependency injection functions — Supabase JWT authentication.
 """
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from firebase_admin import auth
 
-from app.database import get_firestore_db
-from app.core.security import decode_access_token
+from app.utils.firebase import verify_id_token
 
-security_scheme = HTTPBearer()
+security_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
 ) -> dict:
     """
-    Dependency to extract and validate the current authenticated user.
+    Extract and validate the current authenticated user from a Supabase JWT.
 
-    Supports both Firebase ID Tokens and custom JWT access tokens.
+    In demo / offline mode the bearer token may be absent; in that case a
+    guest payload is returned so endpoints degrade gracefully instead of
+    throwing 401 on every unauthenticated demo request.
     """
-    token = credentials.credentials
-    user_payload = None
+    if not credentials:
+        return {
+            "user_id": "demo_user",
+            "uid": "demo_user",
+            "email": "demo@civilink.ai",
+            "name": "Demo User",
+            "is_admin": False,
+        }
 
-    # First attempt: Verify as Firebase ID token
+    token = credentials.credentials
     try:
-        decoded_token = auth.verify_id_token(token)
-        user_payload = {
-            "user_id": decoded_token.get("uid"),
-            "firebase_uid": decoded_token.get("uid"),
-            "email": decoded_token.get("email"),
-            "display_name": decoded_token.get("name"),
-            "photo_url": decoded_token.get("picture"),
+        payload = verify_id_token(token)
+        return {
+            "user_id": payload.get("uid") or payload.get("sub") or "demo_user",
+            "uid": payload.get("uid") or payload.get("sub") or "demo_user",
+            "email": payload.get("email", ""),
+            "name": payload.get("name", ""),
+            "picture": payload.get("picture"),
+            "is_admin": payload.get("is_admin", False),
         }
     except Exception:
-        # Second attempt: Decode custom app JWT token
-        try:
-            payload = decode_access_token(token)
-            user_id = payload.get("sub")
-            if user_id:
-                user_payload = {"user_id": user_id, **payload}
-        except Exception:
-            pass
-
-    if not user_payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication token",
         )
 
-    # Fetch fresh user data from Firestore if available
-    try:
-        db = get_firestore_db()
-        user_doc = db.collection("users").document(user_payload["firebase_uid"]).get()
-        if user_doc.exists:
-            user_data = user_doc.to_dict()
-            user_payload.update(user_data)
-    except Exception:
-        pass
 
-    return user_payload
+async def get_required_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+) -> dict:
+    """Like get_current_user but always requires a valid token."""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    return await get_current_user(credentials)
 
 
 async def get_admin_user(

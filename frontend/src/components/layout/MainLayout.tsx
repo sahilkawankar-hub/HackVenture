@@ -1,23 +1,41 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 
-/**
- * Main layout wrapper with fixed sidebar and scrollable main area.
- * Sidebar is 256px wide (w-64); main area gets ml-64 offset.
- * Uses the light Stitch design shell (bg-[#f8f9ff]).
- */
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit:    { opacity: 0, y: -6 },
+};
+
+const pageTransition = { duration: 0.2 };
+
 function MainLayout() {
+  const location = useLocation();
+
   return (
-    <div className="flex min-h-screen bg-[#f8f9ff]">
+    <div className="flex min-h-screen" style={{ background: "var(--bg-base)" }}>
       {/* Fixed sidebar */}
       <Sidebar />
 
       {/* Scrollable content area — offset by sidebar width */}
-      <div className="ml-64 flex flex-col flex-1 min-h-screen">
+      <div className="ml-[240px] flex flex-col flex-1 min-h-screen">
         <Navbar />
         <main className="flex-1 overflow-y-auto custom-scrollbar">
-          <Outlet />
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={pageTransition}
+              className="h-full"
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>

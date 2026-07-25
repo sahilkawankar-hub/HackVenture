@@ -2,29 +2,53 @@
 CivicIssue schemas for CivicEye AI.
 """
 
-from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
 
+# ── Detection / AI Schemas ────────────────────────────────────────────────────
+
 class BoundingBox(BaseModel):
-    box: List[float]
+    """A single detected object's bounding box."""
+    box: List[float] = Field(description="[x1, y1, x2, y2] pixel coordinates")
     label: str
     confidence: float
+    priority: Optional[str] = None
 
 
 class AIDetectionResponse(BaseModel):
-    """Response schema for AI issue detection endpoint."""
+    """Response schema for the AI image detection endpoint."""
     detected_issue: str
-    confidence_score: float
+    confidence_score: float = Field(ge=0.0, le=1.0)
     suggested_category: str
     priority: str = Field(description="low | medium | high | critical")
     labels: List[str] = Field(default_factory=list)
     bounding_boxes: Optional[List[Dict[str, Any]]] = None
+    model_source: Optional[str] = Field(
+        default=None,
+        description="Which model produced this result: huggingface_road_damage | yolov8n_coco | heuristic",
+    )
+    annotated_image_b64: Optional[str] = Field(
+        default=None,
+        description="Base-64 encoded JPEG of the image with bounding boxes drawn",
+    )
+    total_detections: int = Field(default=0)
 
+
+class ModelStatusResponse(BaseModel):
+    """Response schema for the AI model status endpoint."""
+    is_ready: bool
+    model_source: str = Field(
+        description="huggingface_road_damage | yolov8n_coco | heuristic | loading"
+    )
+    model_classes: List[str] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
+# ── Issue CRUD Schemas ────────────────────────────────────────────────────────
 
 class CivicIssueCreate(BaseModel):
-    """Schema for reporting a civic issue."""
+    """Schema for reporting a civic issue via JSON body."""
     title: str
     description: str
     community_id: str = Field(default="community_default")
@@ -58,11 +82,14 @@ class CivicIssueResponse(BaseModel):
     image_urls: Optional[List[str]] = None
     ai_detected_labels: Optional[List[str]] = None
     ai_confidence: Optional[float] = None
+    ai_bounding_boxes: Optional[List[Dict[str, Any]]] = None
+    model_source: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     address: Optional[str] = None
     upvote_count: int = 0
     created_at: str
+    updated_at: Optional[str] = None
     resolved_at: Optional[str] = None
     resolution_notes: Optional[str] = None
 

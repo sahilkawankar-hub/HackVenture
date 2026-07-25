@@ -2,6 +2,10 @@
  * Type definitions for CivicEye AI feature.
  */
 
+import { CivicIssue } from "./index";
+
+export type { CivicIssue };
+
 export interface BoundingBox {
   box: number[];
   label: string;
@@ -15,27 +19,8 @@ export interface AIDetectionResult {
   priority: "low" | "medium" | "high" | "critical";
   labels: string[];
   bounding_boxes?: BoundingBox[];
-}
-
-export interface CivicIssue {
-  id: string;
-  reporter_id: string;
-  community_id: string;
-  title: string;
-  description: string;
-  category: string;
-  severity: "low" | "medium" | "high" | "critical";
-  status: "open" | "in_progress" | "resolved" | "closed";
-  image_urls?: string[] | null;
-  ai_detected_labels?: string[] | null;
-  ai_confidence?: number | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  address?: string | null;
-  upvote_count: number;
-  created_at: string;
-  resolved_at?: string | null;
-  resolution_notes?: string | null;
+  model_source?: string;
+  annotated_image_b64?: string;
 }
 
 export interface CivicIssueFormData {
@@ -49,4 +34,5 @@ export interface CivicIssueFormData {
   imageFile?: File | null;
   aiDetectedLabels?: string[];
   aiConfidence?: number | null;
+  isAnonymous?: boolean;
 }

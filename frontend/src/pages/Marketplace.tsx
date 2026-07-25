@@ -1,449 +1,317 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  ShoppingBag,
-  Search,
-  PlusCircle,
-  MapPin,
-  Tag,
-  Star,
-  Bookmark,
-  X,
-  Phone,
-  MessageCircle,
-  UserCheck,
-  ChevronRight,
-  Filter,
+  Search, PlusCircle, Star, Bookmark, X, MessageCircle, ShoppingBag
 } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { MarketplaceListing } from "../types";
+import { getListings, createListing, wishlistListing } from "../api/marketplace";
+import { EmptyState } from "../components/common/EmptyState";
 
-interface Product {
-  id: string;
-  title: string;
-  price: number;
-  category: "Furniture" | "Vehicles" | "Electronics" | "Clothing" | "Garden" | "Books";
-  condition: "Like New" | "Good" | "Fair";
-  distance: string;
-  sellerName: string;
-  sellerRating: number;
-  imageUrl: string;
-  description: string;
-  isBookmarked?: boolean;
-}
-
-const initialProducts: Product[] = [
+const DEMO_PRODUCTS: MarketplaceListing[] = [
   {
     id: "M-101",
+    seller_id: "u-1",
+    community_id: "c1",
     title: "Vintage Mahogany Wood Coffee Table",
+    description: "Solid mahogany wood coffee table with soft finish and shelf drawer. Moving out sale!",
     price: 45,
+    currency: "USD",
     category: "Furniture",
-    condition: "Like New",
-    distance: "0.2 miles away",
-    sellerName: "Alex R.",
-    sellerRating: 4.9,
-    imageUrl:
-      "https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&w=800&q=80",
-    description:
-      "Solid mahogany wood coffee table with soft finish and shelf drawer. Moving out sale!",
+    condition: "like_new",
+    image_urls: ["https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&w=800&q=80"],
+    status: "active",
+    views_count: 142,
+    is_wishlisted: false,
+    created_at: new Date(Date.now() - 36000000).toISOString(),
+    updated_at: new Date().toISOString(),
+    seller: { display_name: "Alex R.", reputation_score: 4.9 },
   },
   {
     id: "M-102",
+    seller_id: "u-2",
+    community_id: "c1",
     title: "Modern Charcoal Hybrid Commuter Bike",
+    description: "Lightweight aluminum frame, 21-speed Shimano gears, newly tuned brakes.",
     price: 210,
+    currency: "USD",
     category: "Vehicles",
-    condition: "Good",
-    distance: "0.5 miles away",
-    sellerName: "Carlos M.",
-    sellerRating: 4.8,
-    imageUrl:
-      "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80",
-    description:
-      "Lightweight aluminum frame, 21-speed Shimano gears, newly tuned brakes.",
+    condition: "good",
+    image_urls: ["https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80"],
+    status: "active",
+    views_count: 89,
+    is_wishlisted: true,
+    created_at: new Date(Date.now() - 72000000).toISOString(),
+    updated_at: new Date().toISOString(),
+    seller: { display_name: "Carlos M.", reputation_score: 4.8 },
   },
   {
     id: "M-103",
+    seller_id: "u-3",
+    community_id: "c1",
     title: "4K UHD Smart Monitor 27-inch",
+    description: "Ultra HD IPS panel with USB-C hub built-in. Comes with original stand and box.",
     price: 180,
+    currency: "USD",
     category: "Electronics",
-    condition: "Like New",
-    distance: "0.8 miles away",
-    sellerName: "Jessica T.",
-    sellerRating: 5.0,
-    imageUrl:
-      "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=800&q=80",
-    description:
-      "Ultra HD IPS panel with USB-C hub built-in. Comes with original stand and box.",
-  },
-  {
-    id: "M-104",
-    title: "Teak Patio Lounge Chair & Cushion",
-    price: 65,
-    category: "Garden",
-    condition: "Good",
-    distance: "0.4 miles away",
-    sellerName: "Elena R.",
-    sellerRating: 4.7,
-    imageUrl:
-      "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=800&q=80",
-    description: "Weather-resistant teak wood patio chair with washable outdoor cushion.",
+    condition: "like_new",
+    image_urls: ["https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=800&q=80"],
+    status: "active",
+    views_count: 210,
+    is_wishlisted: false,
+    created_at: new Date(Date.now() - 108000000).toISOString(),
+    updated_at: new Date().toISOString(),
+    seller: { display_name: "Jessica T.", reputation_score: 5.0 },
   },
 ];
 
+const CATEGORIES = ["All", "Furniture", "Vehicles", "Electronics", "Garden", "Clothing", "Books"];
+
 function Marketplace() {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [activeCategory, setActiveCategory] = useState<string>("All");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [maxPrice, setMaxPrice] = useState<number>(500);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const { user } = useAuth();
+  const [products, setProducts] = useState<MarketplaceListing[]>(DEMO_PRODUCTS);
+  const [category, setCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Form State
-  const [newTitle, setNewTitle] = useState("");
-  const [newPrice, setNewPrice] = useState<number>(0);
-  const [newCategory, setNewCategory] = useState<Product["category"]>("Furniture");
-  const [newCondition, setNewCondition] = useState<Product["condition"]>("Like New");
-  const [newDescription, setNewDescription] = useState("");
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [cat, setCat] = useState("Furniture");
+  const [condition] = useState<"new" | "like_new" | "good" | "fair">("like_new");
+  const [description, setDescription] = useState("");
 
-  const handleBookmarkToggle = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  useEffect(() => {
+    getListings()
+      .then((res) => {
+        if (res.items && res.items.length > 0) setProducts(res.items);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleToggleBookmark = async (id: string) => {
     setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isBookmarked: !p.isBookmarked } : p))
+      prev.map((p) => (p.id === id ? { ...p, is_wishlisted: !p.is_wishlisted } : p))
     );
+    try {
+      await wishlistListing(id);
+    } catch {}
   };
 
-  const handleCreateListing = (e: React.FormEvent) => {
+  const handleCreateListing = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle || newPrice <= 0) return;
+    if (!title || !price) return;
 
-    const created: Product = {
-      id: `M-${Date.now().toString().slice(-3)}`,
-      title: newTitle,
-      price: newPrice,
-      category: newCategory,
-      condition: newCondition,
-      distance: "0.1 miles away",
-      sellerName: "Alex Johnson",
-      sellerRating: 5.0,
-      imageUrl:
-        "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80",
-      description: newDescription,
+    const newProd: MarketplaceListing = {
+      id: `M-${Date.now()}`,
+      seller_id: user?.id || "demo-user",
+      community_id: "c1",
+      title,
+      description,
+      price: parseFloat(price),
+      currency: "USD",
+      category: cat,
+      condition,
+      image_urls: ["https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80"],
+      status: "active",
+      views_count: 1,
+      is_wishlisted: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      seller: { display_name: user?.user_metadata?.full_name || "You", reputation_score: 5.0 },
     };
 
-    setProducts([created, ...products]);
+    setProducts([newProd, ...products]);
     setShowCreateModal(false);
-    setNewTitle("");
-    setNewPrice(0);
-    setNewDescription("");
+    setTitle("");
+    setPrice("");
+    setDescription("");
+
+    try {
+      await createListing({
+        community_id: "c1",
+        title,
+        description,
+        price: parseFloat(price),
+        category: cat,
+        condition,
+      });
+    } catch {}
   };
 
   const filteredProducts = products.filter((p) => {
-    const matchesCategory = activeCategory === "All" || p.category === activeCategory;
+    const matchesCat = category === "All" || p.category === category;
     const matchesSearch =
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPrice = p.price <= maxPrice;
-    return matchesCategory && matchesSearch && matchesPrice;
+    return matchesCat && matchesSearch;
   });
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff] text-[#0b1c30] p-6 max-w-7xl mx-auto space-y-8">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-[#0b1c30] tracking-tight">Neighborhood Marketplace</h1>
-          <p className="text-sm text-[#434655] mt-1">
-            Buy and sell secondhand goods locally within Greenwood Heights. Zero platform fees.
-          </p>
-        </div>
+    <div className="min-h-screen" style={{ background: "var(--bg-base)" }}>
+      <div className="p-7 max-w-6xl mx-auto space-y-6">
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-[#004ac6] hover:bg-[#2563eb] text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95 shrink-0"
-        >
-          <PlusCircle className="w-5 h-5" />
-          Create Listing
-        </button>
-      </div>
-
-      {/* ── Search & Filters Bar ────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-[#c3c6d7]/40 shadow-sm">
-        {/* Search Input */}
-        <div className="relative w-full lg:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737686]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search tables, bikes, monitors..."
-            className="w-full pl-10 pr-4 py-2 bg-[#e5eeff] border-none rounded-xl text-xs text-[#0b1c30] placeholder:text-[#737686] focus:ring-2 focus:ring-[#004ac6]/20 transition-all"
-          />
-        </div>
-
-        {/* Categories */}
-        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar w-full lg:w-auto">
-          {["All", "Furniture", "Vehicles", "Electronics", "Clothing", "Garden", "Books"].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                activeCategory === cat
-                  ? "bg-[#004ac6] text-white shadow-sm"
-                  : "bg-[#e5eeff] text-[#434655] hover:bg-[#d3e4fe]"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        {/* Max Price Slider */}
-        <div className="flex items-center gap-3 text-xs w-full lg:w-auto bg-[#f8f9ff] px-3 py-1.5 rounded-xl border border-[#c3c6d7]/30">
-          <span className="font-semibold text-[#434655]">Max Price:</span>
-          <input
-            type="range"
-            min="10"
-            max="500"
-            step="10"
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(Number(e.target.value))}
-            className="w-24 accent-[#004ac6]"
-          />
-          <span className="font-bold text-[#004ac6]">${maxPrice}</span>
-        </div>
-      </div>
-
-      {/* ── Product Grid ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {filteredProducts.map((product) => (
-          <div
-            key={product.id}
-            onClick={() => setSelectedProduct(product)}
-            className="bg-white rounded-2xl border border-[#c3c6d7]/40 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              {/* Media Image */}
-              <div className="h-48 bg-[#e5eeff] relative overflow-hidden">
-                <img
-                  src={product.imageUrl}
-                  alt={product.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                {/* Price tag badge */}
-                <span className="absolute top-3 left-3 bg-[#004ac6] text-white font-extrabold px-3 py-1 rounded-full text-xs shadow-md">
-                  ${product.price}
-                </span>
-
-                {/* Bookmark button */}
-                <button
-                  onClick={(e) => handleBookmarkToggle(product.id, e)}
-                  className="absolute top-3 right-3 p-2 rounded-full bg-white/80 backdrop-blur-sm text-[#434655] hover:text-red-500 transition-colors shadow-sm"
-                >
-                  <Bookmark
-                    className={`w-4 h-4 ${product.isBookmarked ? "fill-red-500 text-red-500" : ""}`}
-                  />
-                </button>
-              </div>
-
-              {/* Card Details */}
-              <div className="p-4 space-y-2">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-[#004ac6] font-bold bg-[#004ac6]/10 px-2 py-0.5 rounded-full">
-                    {product.category}
-                  </span>
-                  <span className="text-[#434655] font-semibold">{product.condition}</span>
-                </div>
-
-                <h3 className="text-sm font-bold text-[#0b1c30] group-hover:text-[#004ac6] transition-colors line-clamp-1">
-                  {product.title}
-                </h3>
-
-                <p className="text-xs text-[#434655] line-clamp-2 leading-relaxed">
-                  {product.description}
-                </p>
-              </div>
-            </div>
-
-            {/* Seller & Distance Footer */}
-            <div className="px-4 pb-4 pt-2 border-t border-[#c3c6d7]/20 flex items-center justify-between text-xs text-[#434655]">
-              <div className="flex items-center gap-1 font-semibold">
-                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span>{product.sellerRating}</span>
-                <span className="text-[#0b1c30] ml-1">{product.sellerName}</span>
-              </div>
-              <span className="text-[11px] font-medium text-[#434655]">{product.distance}</span>
-            </div>
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-[28px] font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>
+              Hyperlocal Marketplace
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>
+              Buy, sell, and trade with verified neighbors in Greenwood Heights.
+            </p>
           </div>
-        ))}
-      </div>
 
-      {/* ── Product Details Modal ───────────────────────────────────────── */}
-      {selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-lg space-y-5 shadow-2xl border border-[#c3c6d7]/50 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div className="flex justify-between items-center border-b border-[#c3c6d7]/30 pb-3">
-              <div>
-                <span className="text-xs font-bold text-[#004ac6] bg-[#004ac6]/10 px-2.5 py-0.5 rounded-full">
-                  {selectedProduct.category}
-                </span>
-                <h3 className="text-xl font-bold text-[#0b1c30] mt-1">{selectedProduct.title}</h3>
-              </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all shadow-md active:scale-95 shrink-0"
+            style={{
+              background: "linear-gradient(135deg, #059669, #10b981)",
+              boxShadow: "0 4px 16px rgba(16,185,129,0.3)",
+            }}
+          >
+            <PlusCircle className="w-5 h-5" />
+            List an Item
+          </button>
+        </div>
+
+        {/* ── Search & Filter Bar ────────────────────────────────────────── */}
+        <div className="card p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search items for sale..."
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs outline-none"
+              style={{
+                background: "var(--bg-input)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-primary)",
+              }}
+            />
+          </div>
+
+          <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto">
+            {CATEGORIES.map((c) => (
               <button
-                onClick={() => setSelectedProduct(null)}
-                className="p-1.5 rounded-full hover:bg-slate-100 text-[#434655]"
+                key={c}
+                onClick={() => setCategory(c)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                  category === c
+                    ? "bg-[#10b981] text-white shadow-sm"
+                    : "bg-slate-100 dark:bg-slate-800 text-[#475569] dark:text-slate-400 hover:text-[#10b981]"
+                }`}
               >
-                <X className="w-5 h-5" />
+                {c}
               </button>
-            </div>
+            ))}
+          </div>
+        </div>
 
-            <div className="h-60 rounded-2xl overflow-hidden bg-slate-100 relative">
-              <img src={selectedProduct.imageUrl} alt={selectedProduct.title} className="w-full h-full object-cover" />
-              <span className="absolute bottom-3 left-3 bg-[#004ac6] text-white text-lg font-black px-4 py-1 rounded-full shadow-lg">
-                ${selectedProduct.price}
-              </span>
-            </div>
-
-            <div className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-[#f8f9ff] rounded-xl border border-[#c3c6d7]/30">
-                  <p className="text-[#434655] font-medium">Condition</p>
-                  <p className="font-bold text-[#0b1c30] mt-0.5">{selectedProduct.condition}</p>
+        {/* ── Product Grid ──────────────────────────────────────────────── */}
+        {filteredProducts.length === 0 ? (
+          <EmptyState
+            icon={<ShoppingBag className="w-8 h-8" />}
+            title="No listings found"
+            description="Be the first neighbor to list an item in this category!"
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredProducts.map((product) => (
+              <div key={product.id} className="card overflow-hidden group hover:shadow-lg transition-all flex flex-col justify-between">
+                {/* Image */}
+                <div className="h-48 relative bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  {product.image_urls && product.image_urls.length > 0 ? (
+                    <img src={product.image_urls[0]} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[#94a3b8]">No Image</div>
+                  )}
+                  <button
+                    onClick={() => handleToggleBookmark(product.id)}
+                    className="absolute top-3 right-3 p-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-full text-slate-600 dark:text-slate-300 hover:text-red-500 transition-colors shadow-sm"
+                  >
+                    <Bookmark className={`w-4 h-4 ${product.is_wishlisted ? "fill-red-500 text-red-500" : ""}`} />
+                  </button>
+                  <span className="absolute bottom-3 left-3 px-2.5 py-1 bg-black/60 backdrop-blur-md text-white rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    {product.condition.replace("_", " ")}
+                  </span>
                 </div>
-                <div className="p-3 bg-[#f8f9ff] rounded-xl border border-[#c3c6d7]/30">
-                  <p className="text-[#434655] font-medium">Proximity</p>
-                  <p className="font-bold text-[#0b1c30] mt-0.5 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-red-500" />
-                    {selectedProduct.distance}
-                  </p>
-                </div>
-              </div>
 
-              <div>
-                <p className="font-bold text-[#0b1c30] mb-1">Item Description</p>
-                <p className="text-[#434655] leading-relaxed">{selectedProduct.description}</p>
-              </div>
+                {/* Details */}
+                <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-extrabold text-sm line-clamp-1" style={{ color: "var(--text-primary)" }}>{product.title}</h3>
+                      <span className="text-base font-black text-[#10b981]">${product.price}</span>
+                    </div>
+                    <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--text-secondary)" }}>{product.description}</p>
+                  </div>
 
-              {/* Seller Profile Box */}
-              <div className="p-4 bg-[#e5eeff] rounded-2xl border border-[#004ac6]/20 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-[#004ac6] uppercase">Verified Seller</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="font-bold text-[#0b1c30] text-sm">{selectedProduct.sellerName}</span>
-                    <span className="flex items-center text-xs text-amber-600 font-bold">
-                      ★ {selectedProduct.sellerRating}
-                    </span>
+                  <div className="pt-3 border-t flex items-center justify-between text-xs" style={{ borderColor: "var(--border-color)" }}>
+                    <div className="flex items-center gap-1.5 text-[#94a3b8]">
+                      <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{product.seller?.display_name || "Seller"}</span>
+                      <span>·</span>
+                      <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                      <span>{product.seller?.reputation_score || 5.0}</span>
+                    </div>
+
+                    <button
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-[#10b981] font-bold hover:bg-emerald-100 transition-colors"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" /> Chat
+                    </button>
                   </div>
                 </div>
-                <button
-                  onClick={() => alert(`Contact request sent to ${selectedProduct.sellerName}!`)}
-                  className="px-4 py-2 bg-[#004ac6] text-white font-bold rounded-xl flex items-center gap-2 hover:bg-[#2563eb]"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Chat with Seller
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Create Listing Modal ───────────────────────────────────────── */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl border" style={{ borderColor: "var(--border-color)" }}>
+              <div className="flex justify-between items-center border-b pb-3" style={{ borderColor: "var(--border-color)" }}>
+                <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>List an Item for Sale</h3>
+                <button onClick={() => setShowCreateModal(false)} className="p-1 text-[#94a3b8]">
+                  <X className="w-5 h-5" />
                 </button>
               </div>
+
+              <form onSubmit={handleCreateListing} className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold block mb-1" style={{ color: "var(--text-primary)" }}>Item Title *</label>
+                  <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Modern Coffee Table" className="input-base" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold block mb-1" style={{ color: "var(--text-primary)" }}>Price ($) *</label>
+                    <input type="number" required value={price} onChange={(e) => setPrice(e.target.value)} placeholder="45" className="input-base" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1" style={{ color: "var(--text-primary)" }}>Category</label>
+                    <select value={cat} onChange={(e) => setCat(e.target.value)} className="input-base">
+                      {CATEGORIES.filter((c) => c !== "All").map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1" style={{ color: "var(--text-primary)" }}>Description</label>
+                  <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe item condition, pickup location..." className="input-base" />
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 rounded-xl text-xs font-semibold border text-[#475569]" style={{ borderColor: "var(--border-color)" }}>Cancel</button>
+                  <button type="submit" className="px-5 py-2 rounded-xl bg-[#10b981] text-white text-xs font-bold hover:bg-emerald-700 shadow-sm">Publish Listing</button>
+                </div>
+              </form>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ── Create Listing Modal ────────────────────────────────────────── */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-lg space-y-5 shadow-2xl border border-[#c3c6d7]/50">
-            <div className="flex justify-between items-center border-b border-[#c3c6d7]/30 pb-3">
-              <h3 className="text-lg font-bold text-[#0b1c30]">Sell an Item</h3>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="p-1 rounded-full hover:bg-slate-100 text-[#434655]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateListing} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-[#0b1c30] mb-1 block">Title</label>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Teak Outdoor Dining Table"
-                  className="w-full p-3 bg-[#f8f9ff] border border-[#c3c6d7] rounded-xl text-xs text-[#0b1c30]"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-[#0b1c30] mb-1 block">Price ($)</label>
-                  <input
-                    type="number"
-                    value={newPrice}
-                    onChange={(e) => setNewPrice(Number(e.target.value))}
-                    placeholder="45"
-                    className="w-full p-3 bg-[#f8f9ff] border border-[#c3c6d7] rounded-xl text-xs text-[#0b1c30]"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-[#0b1c30] mb-1 block">Category</label>
-                  <select
-                    value={newCategory}
-                    onChange={(e: any) => setNewCategory(e.target.value)}
-                    className="w-full p-3 bg-[#f8f9ff] border border-[#c3c6d7] rounded-xl text-xs font-semibold text-[#0b1c30]"
-                  >
-                    <option value="Furniture">Furniture</option>
-                    <option value="Vehicles">Vehicles</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Clothing">Clothing</option>
-                    <option value="Garden">Garden</option>
-                    <option value="Books">Books</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-[#0b1c30] mb-1 block">Condition</label>
-                <select
-                  value={newCondition}
-                  onChange={(e: any) => setNewCondition(e.target.value)}
-                  className="w-full p-3 bg-[#f8f9ff] border border-[#c3c6d7] rounded-xl text-xs font-semibold text-[#0b1c30]"
-                >
-                  <option value="Like New">Like New</option>
-                  <option value="Good">Good</option>
-                  <option value="Fair">Fair</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-[#0b1c30] mb-1 block">Description</label>
-                <textarea
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  rows={3}
-                  placeholder="Describe dimensions, pickup spot, reason for selling..."
-                  className="w-full p-3 bg-[#f8f9ff] border border-[#c3c6d7] rounded-xl text-xs text-[#0b1c30]"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-[#c3c6d7] font-semibold text-[#434655] hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#004ac6] text-white font-bold hover:bg-[#2563eb] shadow-md"
-                >
-                  Post Marketplace Listing
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

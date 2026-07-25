@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { useAuthContext, UserRole } from "../context/AuthContext";
+import { useAuthContext } from "../context/AuthContext";
 
 /**
  * Custom hook for Supabase authentication operations.

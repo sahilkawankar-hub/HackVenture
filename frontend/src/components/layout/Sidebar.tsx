@@ -1,44 +1,34 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import React from "react";
+import { NavLink as LinkNav, useNavigate as useNav } from "react-router-dom";
+import {
+  LayoutDashboard, Brain, MessageSquare, Users, ShoppingBag,
+  Search, Briefcase, AlertOctagon, ShieldAlert, Bell, Settings,
+  LogOut, ExternalLink, ShieldCheck, Share2
+} from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import { getInitials } from "../../lib/utils";
 
 interface NavItem {
   path: string;
   label: string;
-  icon: string;
-  iconColor?: string;
+  icon: React.ReactNode;
   adminOnly?: boolean;
+  badge?: number;
 }
 
-const navItems: NavItem[] = [
-  { path: "/", label: "Dashboard", icon: "dashboard" },
-  { path: "/civic-eye", label: "CivicEye AI", icon: "psychology", iconColor: "text-[#3e3fcc]" },
-  { path: "/feed", label: "Community Feed", icon: "forum" },
-  { path: "/marketplace", label: "Marketplace", icon: "storefront" },
-  { path: "/lost-found", label: "Lost & Found", icon: "search_check" },
-  { path: "/jobs", label: "Local Jobs", icon: "work" },
-  { path: "/sos", label: "Emergency SOS", icon: "emergency", iconColor: "text-red-500" },
-  { path: "/admin", label: "Admin Panel", icon: "admin_panel_settings", iconColor: "text-[#004ac6]", adminOnly: true },
-];
-
 function Sidebar() {
-  const navigate = useNavigate();
+  const navigate = useNav();
   const { user, isAdmin, logout } = useAuth();
 
-  // Derive display name and initials from Supabase user
   const displayName =
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||
     user?.email?.split("@")[0] ||
     "User";
 
-  const initials = displayName
-    .split(" ")
-    .map((w: string) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
+  const initials = getInitials(displayName);
   const displayEmail = user?.email || "";
+  const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
 
   const handleLogout = async () => {
     try {
@@ -49,113 +39,150 @@ function Sidebar() {
     }
   };
 
-  // Filter nav items based on role
+  const navItems: NavItem[] = [
+    { path: "/",          label: "Dashboard",         icon: <LayoutDashboard className="w-5 h-5" /> },
+    { path: "/civic-eye", label: "CivicEye AI",        icon: <Brain className="w-5 h-5 text-indigo-500" /> },
+    { path: "/feed",      label: "Community Feed",     icon: <MessageSquare className="w-5 h-5 text-blue-500" /> },
+    { path: "/community", label: "Communities",        icon: <Users className="w-5 h-5 text-emerald-500" /> },
+    { path: "/marketplace",label: "Marketplace",      icon: <ShoppingBag className="w-5 h-5 text-orange-500" /> },
+    { path: "/lost-found", label: "Lost & Found",      icon: <Search className="w-5 h-5 text-cyan-500" /> },
+    { path: "/jobs",      label: "Local Jobs",         icon: <Briefcase className="w-5 h-5 text-amber-500" /> },
+    { path: "/sos",       label: "Emergency SOS",      icon: <AlertOctagon className="w-5 h-5 text-red-500" /> },
+    { path: "/admin",     label: "Admin Panel",        icon: <ShieldAlert className="w-5 h-5 text-[#2563eb]" />, adminOnly: true },
+  ];
+
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
-    <aside className="h-screen w-64 flex flex-col fixed left-0 top-0 bg-[#eff4ff] shadow-sm z-50 border-r border-[#c3c6d7]/40">
-      <div className="flex flex-col h-full py-6 gap-4 px-4">
-        {/* Logo */}
-        <div className="px-2 mb-4 flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-[#004ac6] flex items-center justify-center text-white shadow-md">
-            <span
-              className="material-symbols-outlined text-[22px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              hub
-            </span>
+    <aside
+      className="h-screen w-[240px] flex flex-col fixed left-0 top-0 z-50 border-r transition-colors duration-300"
+      style={{
+        background: "var(--bg-sidebar)",
+        borderColor: "var(--border-color)",
+      }}
+    >
+      <div className="flex flex-col h-full py-5 gap-3 px-3">
+
+        {/* ── Logo ──────────────────────────────────────────────────────── */}
+        <div className="px-2 mb-2 flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1d4ed8] to-[#6366f1] flex items-center justify-center text-white shadow-md shadow-blue-200 flex-shrink-0">
+            <Share2 className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-[18px] font-bold text-[#004ac6] leading-tight tracking-tight">
+            <h1 className="text-[16px] font-extrabold text-[#2563eb] leading-tight tracking-tight">
               CiviLink AI
             </h1>
-            <p className="text-[9px] uppercase tracking-widest font-bold text-[#434655]/60">
+            <p className="text-[9px] uppercase tracking-[0.12em] font-bold text-[#94a3b8]">
               Smart Community
             </p>
           </div>
         </div>
 
-        {/* Role Badge */}
+        {/* ── Admin Role Badge ──────────────────────────────────────────── */}
         {isAdmin && (
-          <div className="mx-2 px-3 py-2 bg-purple-100 border border-purple-200 rounded-xl flex items-center gap-2">
-            <span className="material-symbols-outlined text-purple-600 text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-              shield_person
+          <div className="mx-1 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider">
+              Admin Mode
             </span>
-            <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">Admin Mode</span>
           </div>
         )}
 
-        {/* Navigation Links */}
-        <nav className="flex-1 space-y-1 overflow-y-auto custom-scrollbar pr-1">
+        {/* ── Navigation Links ──────────────────────────────────────────── */}
+        <nav className="flex-1 space-y-0.5 overflow-y-auto custom-scrollbar pr-1">
           {visibleItems.map((item) => (
-            <NavLink
+            <LinkNav
               key={item.path}
               to={item.path}
               end={item.path === "/"}
               className={({ isActive }) =>
-                `flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-150 active:scale-[0.98] ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 group relative ${
                   isActive
-                    ? "text-[#004ac6] font-bold border-r-2 border-[#004ac6] bg-[#004ac6]/10 shadow-sm"
-                    : "text-[#434655] hover:text-[#0b1c30] hover:bg-[#d3e4fe]/50"
+                    ? "bg-[#eff6ff] dark:bg-blue-900/25 text-[#2563eb] font-semibold"
+                    : "text-[#475569] dark:text-slate-400 hover:text-[#0f1f3d] dark:hover:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-slate-800/60"
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <span
-                    className={`material-symbols-outlined text-[22px] ${
-                      isActive ? "text-[#004ac6]" : (item.iconColor ?? "text-[#434655]")
-                    }`}
-                    style={isActive ? { fontVariationSettings: "'FILL' 1" } : undefined}
-                  >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-[#2563eb] rounded-full" />
+                  )}
+                  <span className={`transition-transform duration-150 group-hover:scale-110 shrink-0 ${isActive ? "text-[#2563eb]" : ""}`}>
                     {item.icon}
                   </span>
-                  <span className="text-[14px] font-[560] leading-none">
-                    {item.label}
-                  </span>
+                  <span className="text-[13px] font-[550] leading-none flex-1">{item.label}</span>
+                  {item.badge && item.badge > 0 && (
+                    <span className="px-1.5 py-0.5 bg-[#2563eb] text-white text-[9px] font-bold rounded-full min-w-[18px] text-center">
+                      {item.badge > 99 ? "99+" : item.badge}
+                    </span>
+                  )}
                 </>
               )}
-            </NavLink>
+            </LinkNav>
           ))}
         </nav>
 
-        {/* Footer: Settings, Profile & Logout */}
-        <div className="mt-auto border-t border-[#c3c6d7]/30 pt-3 space-y-2">
-          <NavLink
-            to="/settings"
+        {/* ── Footer: Settings + Notifications + Profile ────────────────── */}
+        <div className="border-t pt-2 space-y-0.5" style={{ borderColor: "var(--border-color)" }}>
+
+          <LinkNav
+            to="/notifications"
             className={({ isActive }) =>
-              `flex items-center gap-4 px-4 py-2.5 rounded-2xl transition-all duration-150 ${
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 ${
                 isActive
-                  ? "text-[#004ac6] font-bold bg-[#004ac6]/10"
-                  : "text-[#434655] hover:text-[#0b1c30] hover:bg-[#d3e4fe]/50"
+                  ? "text-[#2563eb] font-semibold bg-[#eff6ff] dark:bg-blue-900/25"
+                  : "text-[#475569] dark:text-slate-400 hover:text-[#0f1f3d] dark:hover:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-slate-800/60"
               }`
             }
           >
-            <span className="material-symbols-outlined text-[22px]">settings</span>
-            <span className="text-[14px] font-[560]">Settings</span>
-          </NavLink>
+            <Bell className="w-5 h-5 text-[#94a3b8]" />
+            <span className="text-[13px] font-[550] flex-1">Notifications</span>
+          </LinkNav>
 
-          {/* User Profile Card */}
-          <div className="flex items-center gap-3 px-3 py-2.5 bg-[#e5eeff] rounded-2xl">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#004ac6] to-[#3e3fcc] flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm">
-              {initials}
+          <LinkNav
+            to="/settings"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 ${
+                isActive
+                  ? "text-[#2563eb] font-semibold bg-[#eff6ff] dark:bg-blue-900/25"
+                  : "text-[#475569] dark:text-slate-400 hover:text-[#0f1f3d] dark:hover:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-slate-800/60"
+              }`
+            }
+          >
+            <Settings className="w-5 h-5 text-[#94a3b8]" />
+            <span className="text-[13px] font-[550]">Settings</span>
+          </LinkNav>
+
+          {/* Profile Card */}
+          <LinkNav
+            to="/profile"
+            className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-all group mt-1"
+          >
+            <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden shadow-sm">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-[#2563eb] to-[#6366f1] flex items-center justify-center text-white font-bold text-xs">
+                  {initials}
+                </div>
+              )}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-[13px] font-semibold text-[#0b1c30] truncate">
+              <p className="text-[12px] font-semibold text-[#0f1f3d] dark:text-slate-200 truncate">
                 {displayName}
               </p>
-              <p className="text-[10px] text-[#434655] truncate">
-                {displayEmail}
-              </p>
+              <p className="text-[10px] text-[#94a3b8] truncate">{displayEmail}</p>
             </div>
-          </div>
+            <ExternalLink className="w-3.5 h-3.5 text-[#94a3b8] group-hover:text-[#2563eb] transition-colors" />
+          </LinkNav>
 
-          {/* Logout Button */}
+          {/* Logout */}
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-2xl transition-all text-[13px] font-semibold"
+            className="w-full flex items-center gap-3 px-3 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all text-[13px] font-semibold cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[20px]">logout</span>
+            <LogOut className="w-4 h-4" />
             Sign Out
           </button>
         </div>

@@ -1,22 +1,18 @@
 /**
- * Authentication API calls.
+ * Auth API client.
  */
-
 import apiClient from "../lib/axios";
 
-export async function loginWithToken(firebaseToken: string) {
-  const response = await apiClient.post("/auth/login", {
-    firebase_token: firebaseToken,
-  });
+export async function getCurrentUser(): Promise<Record<string, unknown>> {
+  const response = await apiClient.get<Record<string, unknown>>("/auth/me");
   return response.data;
 }
 
-export async function getCurrentUser() {
-  const response = await apiClient.get("/auth/me");
-  return response.data;
-}
-
-export async function updateProfile(data: Record<string, unknown>) {
-  const response = await apiClient.put("/auth/me", data);
+export async function syncUser(data: {
+  email: string;
+  display_name?: string;
+  photo_url?: string;
+}): Promise<Record<string, unknown>> {
+  const response = await apiClient.post<Record<string, unknown>>("/auth/sync", data);
   return response.data;
 }

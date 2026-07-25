@@ -4,12 +4,10 @@ import {
   ThumbsUp,
   Clock,
   Sparkles,
-  ShieldAlert,
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
 } from "lucide-react";
-import { CivicIssue } from "../../types/civicEye";
+import { CivicIssue } from "../../types";
 import { upvoteCivicIssue, updateIssueStatus } from "../../api/civicEye";
 
 interface IssueCardProps {
