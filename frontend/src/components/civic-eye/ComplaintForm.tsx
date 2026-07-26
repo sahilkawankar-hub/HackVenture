@@ -14,10 +14,14 @@ interface ComplaintFormProps {
 
 const CATEGORIES = [
   "Potholes & Road Damage",
-  "Waste & Garbage",
-  "Water Leakage & Drainage",
+  "Trees & Environment",
+  "Waste & Sanitation",
+  "Water & Sanitation",
   "Streetlight & Electrical",
+  "Traffic & Mobility",
+  "Public Safety",
   "Public Facilities",
+  "General Infrastructure",
   "Other",
 ];
 
@@ -83,10 +87,46 @@ export const ComplaintForm: React.FC<ComplaintFormProps> = ({ onSuccess }) => {
     try {
       const result = await detectCivicIssue(imageFile);
       setAiResult(result);
-      if (result.suggested_category) setCategory(result.suggested_category);
-      if (result.priority) setSeverity(result.priority as any);
-      if (!title && result.detected_issue) {
-        setTitle(`${result.detected_issue} detected`);
+
+      // Auto-fill Title
+      if (result.detected_issue) {
+        setTitle(result.detected_issue);
+      }
+
+      // Auto-fill Description if empty
+      if (result.detected_issue) {
+        setDescription(
+          `${result.detected_issue} automatically identified by CivicEye AI. Immediate site inspection requested.`
+        );
+      }
+
+      // Auto-fill Category
+      if (result.suggested_category) {
+        const catLower = result.suggested_category.toLowerCase();
+        const matched = CATEGORIES.find(
+          (c) =>
+            c.toLowerCase() === catLower ||
+            c.toLowerCase().includes(catLower) ||
+            catLower.includes(c.toLowerCase())
+        );
+        if (matched) {
+          setCategory(matched);
+        } else if (catLower.includes("tree") || catLower.includes("green")) {
+          setCategory("Trees & Environment");
+        } else if (catLower.includes("water") || catLower.includes("drain")) {
+          setCategory("Water & Sanitation");
+        } else if (catLower.includes("waste") || catLower.includes("garb")) {
+          setCategory("Waste & Sanitation");
+        } else if (catLower.includes("fire") || catLower.includes("safet")) {
+          setCategory("Public Safety");
+        } else {
+          setCategory(CATEGORIES[0]);
+        }
+      }
+
+      // Auto-fill Severity
+      if (result.priority) {
+        setSeverity(result.priority.toLowerCase() as any);
       }
     } catch (err: any) {
       setAiError(err?.message || "AI vision detection failed. You can still report manually.");

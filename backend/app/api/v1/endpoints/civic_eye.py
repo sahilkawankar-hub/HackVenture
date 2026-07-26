@@ -120,6 +120,7 @@ async def report_civic_issue(
     confidence = ai_confidence
     bounding_boxes = None
     model_source = None
+    ai_metadata = None
 
     if file:
         if not file.content_type or not file.content_type.startswith("image/"):
@@ -139,6 +140,7 @@ async def report_civic_issue(
             confidence = ai_res.get("confidence_score", 0.0)
             bounding_boxes = ai_res.get("bounding_boxes")
             model_source = ai_res.get("model_source")
+            ai_metadata = ai_res.get("ai_metadata")
 
             # Let the AI override category / severity when defaults are used
             if not category or category in ("Other", ""):
@@ -167,6 +169,7 @@ async def report_civic_issue(
         ai_confidence=confidence,
         ai_bounding_boxes=bounding_boxes,
         model_source=model_source,
+        ai_metadata=ai_metadata if file else None,
     )
     return CivicIssueResponse(**doc)
 
@@ -198,6 +201,7 @@ async def report_civic_issue_json(
         address=payload.address,
         ai_detected_labels=payload.ai_detected_labels,
         ai_confidence=payload.ai_confidence,
+        ai_metadata=payload.ai_metadata,
     )
     return CivicIssueResponse(**doc)
 

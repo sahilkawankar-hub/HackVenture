@@ -5,7 +5,7 @@ const jobs = [
   {
     id: "1",
     title: "Dog Walker Needed",
-    meta: "2 blocks away · $25/hr",
+    meta: "2 blocks away · ₹500/hr",
   },
   {
     id: "2",

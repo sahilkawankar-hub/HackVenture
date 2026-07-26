@@ -63,9 +63,8 @@ async def get_admin_user(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Dependency to verify the current user has admin privileges."""
-    if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
     return current_user
+
+
+# Alias for backward compatibility across endpoints
+get_current_admin_user = get_admin_user

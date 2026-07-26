@@ -14,6 +14,8 @@ PyJWT==2.9.0
 ultralytics==8.3.0
 # huggingface_hub is used to download model weights
 huggingface-hub==0.25.1
+transformers==4.44.2
+sentencepiece==0.2.0
 # Torch CPU-only build is sufficient for inference;
 # swap for a CUDA build if a GPU is available.
 torch==2.4.1

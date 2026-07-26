@@ -1,73 +1,227 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 /**
- * IssueMapCard — interactive map preview with floating issue card.
- * Spans 8 of 12 columns on desktop. Map is a styled placeholder.
+ * IssueMapCard — interactive live map preview with browser GPS + IP Geolocation fallback & manual search.
  */
 function IssueMapCard() {
   const navigate = useNavigate();
 
+  // Default to New Delhi, India
+  const [coords, setCoords] = useState<{ lat: number; lng: number }>({
+    lat: 28.6139,
+    lng: 77.209,
+  });
+  const [locationName, setLocationName] = useState<string>("New Delhi, India");
+  const [locationStatus, setLocationStatus] = useState<string>("Initializing...");
+  const [isLive, setIsLive] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [showSearch, setShowSearch] = useState<boolean>(false);
+
+  // Attempt IP-based location fallback (works when GPS is denied/disabled on desktop)
+  const fetchIPLocation = () => {
+    setLocationStatus("Fetching IP location...");
+    fetch("https://ipapi.co/json/")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.latitude && data.longitude) {
+          const lat = parseFloat(data.latitude);
+          const lng = parseFloat(data.longitude);
+          setCoords({ lat, lng });
+          const city = data.city || data.region || "Local Area";
+          const country = data.country_name || "India";
+          setLocationName(`${city}, ${country}`);
+          setIsLive(true);
+          setLocationStatus(`Live via IP (${city})`);
+        } else {
+          throw new Error("Invalid IP location response");
+        }
+      })
+      .catch((err) => {
+        console.warn("IP Geolocation failed:", err);
+        setLocationStatus("India Default (New Delhi)");
+        setIsLive(false);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  // Primary: Browser Geolocation API
+  const fetchLiveLocation = () => {
+    setLoading(true);
+    setLocationStatus("Locating via GPS...");
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setCoords({ lat: latitude, lng: longitude });
+          setIsLive(true);
+          setLocationStatus("Live GPS Active");
+
+          // Reverse geocode via free Nominatim API for display name
+          fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          )
+            .then((res) => res.json())
+            .then((data) => {
+              if (data?.address) {
+                const city =
+                  data.address.city ||
+                  data.address.town ||
+                  data.address.suburb ||
+                  data.address.county ||
+                  data.address.state ||
+                  "Live Location";
+                const country = data.address.country || "India";
+                setLocationName(`${city}, ${country}`);
+              } else {
+                setLocationName(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+              }
+            })
+            .catch(() => setLocationName("Your Live Location"))
+            .finally(() => setLoading(false));
+        },
+        (error) => {
+          console.warn("Browser GPS unavailable/denied:", error.message);
+          // Fall back to IP-based location detection
+          fetchIPLocation();
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 8000,
+          maximumAge: 60000,
+        }
+      );
+    } else {
+      fetchIPLocation();
+    }
+  };
+
+  // Handle manual location search (e.g., "Mumbai", "Bangalore", "Connaught Place Delhi")
+  const handleSearchLocation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setLoading(true);
+    setLocationStatus("Searching location...");
+
+    fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        searchQuery + ", India"
+      )}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.length > 0) {
+          const lat = parseFloat(data[0].lat);
+          const lng = parseFloat(data[0].lon);
+          setCoords({ lat, lng });
+          setLocationName(data[0].display_name.split(",").slice(0, 2).join(","));
+          setIsLive(true);
+          setLocationStatus("Custom Location");
+          setShowSearch(false);
+          setSearchQuery("");
+        } else {
+          alert("Location not found. Please try another city or neighborhood in India.");
+        }
+      })
+      .catch(() => alert("Could not search location. Please check internet connection."))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchLiveLocation();
+  }, []);
+
   return (
-    <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-[#c3c6d7]/50 overflow-hidden flex flex-col h-[500px] hover:shadow-md transition-all">
+    <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-[#c3c6d7]/50 overflow-hidden flex flex-col h-[520px] hover:shadow-md transition-all">
       {/* Header */}
-      <div className="px-5 py-4 flex justify-between items-center border-b border-[#c3c6d7]/40 flex-shrink-0">
+      <div className="px-5 py-4 flex flex-wrap justify-between items-center border-b border-[#c3c6d7]/40 flex-shrink-0 gap-3">
         <div>
-          <h3 className="text-[16px] font-semibold text-[#0b1c30]">Issue Map</h3>
-          <p className="text-[11px] text-[#434655] mt-0.5">
-            Real-time reports in Greenwood Heights
+          <div className="flex items-center gap-2">
+            <h3 className="text-[16px] font-semibold text-[#0b1c30]">Issue Map</h3>
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                isLive ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              ● {locationStatus}
+            </span>
+          </div>
+          <p className="text-[11px] text-[#434655] mt-0.5 font-medium">
+            Real-time reports in <span className="text-[#004ac6] font-semibold">{locationName}</span>
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {showSearch ? (
+            <form onSubmit={handleSearchLocation} className="flex items-center gap-1">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search city in India..."
+                className="px-3 py-1 bg-slate-100 border border-slate-300 rounded-full text-xs text-slate-800 outline-none focus:border-[#004ac6] w-44"
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="px-2.5 py-1 bg-[#004ac6] text-white rounded-full text-xs font-semibold hover:bg-[#003aa0]"
+              >
+                Go
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSearch(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs px-1"
+              >
+                ✕
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => setShowSearch(true)}
+              className="flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-full text-[10px] font-bold transition-colors"
+            >
+              <span className="material-symbols-outlined text-[14px]">search</span>
+              Search City
+            </button>
+          )}
+
+          <button
+            onClick={fetchLiveLocation}
+            disabled={loading}
+            className="flex items-center gap-1 px-3 py-1 bg-[#e5eeff] text-[#004ac6] hover:bg-[#d4e4ff] rounded-full text-[10px] font-bold transition-colors disabled:opacity-50"
+            title="Locate me using GPS or IP"
+          >
+            <span className="material-symbols-outlined text-[14px] animate-spin-slow">
+              my_location
+            </span>
+            {loading ? "Locating..." : "Use My Location"}
+          </button>
+
           <span className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-500 rounded-full text-[10px] font-bold">
             <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
             3 High Priority
-          </span>
-          <span className="flex items-center gap-1.5 px-3 py-1 bg-[#004ac6]/10 text-[#004ac6] rounded-full text-[10px] font-bold">
-            <span className="w-1.5 h-1.5 bg-[#004ac6] rounded-full" />
-            12 Active Fixes
           </span>
         </div>
       </div>
 
       {/* Map area */}
       <div className="flex-1 relative bg-[#e5eeff] overflow-hidden">
-        {/* Stylised map grid backdrop */}
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage:
-              "linear-gradient(#c3c6d7 1px, transparent 1px), linear-gradient(90deg, #c3c6d7 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
+        <iframe
+          key={`${coords.lat}-${coords.lng}`}
+          title="Live Location Issue Map"
+          width="100%"
+          height="100%"
+          style={{ border: 0 }}
+          loading="lazy"
+          allowFullScreen
+          src={`https://maps.google.com/maps?q=${coords.lat},${coords.lng}&z=14&output=embed`}
         />
 
-        {/* Street overlays */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-20">
-          <div className="w-full h-[2px] bg-white" />
-        </div>
-        <div className="absolute inset-0 flex items-center justify-center opacity-20">
-          <div className="h-full w-[2px] bg-white" />
-        </div>
-
-        {/* Map centre label */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center opacity-20">
-            <span className="material-symbols-outlined text-[64px] text-[#004ac6]">
-              map
-            </span>
-            <p className="text-xs text-[#004ac6] font-semibold">Greenwood Heights</p>
-          </div>
-        </div>
-
-        {/* Issue marker dots */}
-        <div className="absolute top-16 left-1/3 w-3 h-3 bg-red-500 rounded-full shadow-md animate-pulse" />
-        <div className="absolute top-28 right-1/4 w-3 h-3 bg-red-500 rounded-full shadow-md animate-pulse" />
-        <div className="absolute bottom-32 left-1/2 w-3 h-3 bg-[#004ac6] rounded-full shadow-md" />
-        <div className="absolute bottom-20 right-1/3 w-3 h-3 bg-[#006c49] rounded-full shadow-md" />
-        <div className="absolute top-1/2 left-1/4 w-3 h-3 bg-[#004ac6] rounded-full shadow-md" />
-
-        {/* Floating issue card */}
-        <div className="absolute top-4 left-4 bg-white p-4 rounded-xl shadow-lg border border-[#c3c6d7]/30 max-w-[220px] animate-fade-in">
+        {/* Floating issue card overlay */}
+        <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-lg border border-[#c3c6d7]/30 max-w-[230px] animate-fade-in z-10">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-red-50 text-red-500 rounded-lg flex-shrink-0">
               <span className="material-symbols-outlined text-[18px]">water_drop</span>
@@ -83,12 +237,14 @@ function IssueMapCard() {
             <span className="px-2 py-0.5 bg-red-500 text-white rounded-full text-[9px] font-bold uppercase">
               High Priority
             </span>
-            <span className="text-[11px] text-[#434655]">12 Elm St.</span>
+            <span className="text-[11px] text-[#434655] truncate ml-1 font-medium">
+              {locationName}
+            </span>
           </div>
           <button
             id="map-view-details-btn"
             onClick={() => navigate("/civic-eye")}
-            className="w-full py-2 bg-[#e5eeff] text-[#0b1c30] rounded-lg text-[11px] font-bold hover:bg-[#dce9ff] transition-colors"
+            className="w-full py-2 bg-[#004ac6] text-white rounded-lg text-[11px] font-bold hover:bg-[#003aa0] transition-colors shadow-sm"
           >
             View Details
           </button>
@@ -99,3 +255,4 @@ function IssueMapCard() {
 }
 
 export default IssueMapCard;
+

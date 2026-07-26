@@ -289,7 +289,8 @@ function Login() {
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(null); }}
                   placeholder={portal === "admin" ? "admin email" : "you@example.com"}
-                  className="input-base pl-10"
+                  className="input-base"
+                  style={{ paddingLeft: "3.75rem" }}
                   required
                 />
               </div>
@@ -316,7 +317,8 @@ function Login() {
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(null); }}
                   placeholder="Enter your password"
-                  className="input-base pl-10 pr-10"
+                  className="input-base"
+                  style={{ paddingLeft: "3.75rem", paddingRight: "3.75rem" }}
                   required
                 />
                 <button

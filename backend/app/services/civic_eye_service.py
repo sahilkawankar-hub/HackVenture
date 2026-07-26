@@ -12,7 +12,7 @@ from app.utils.firebase import get_document, set_document, query_collection
 from app.utils.storage import upload_image
 from app.models import Collections
 from app.models.civic_issue import create_civic_issue_doc
-from app.ai.civic_eye_model import civic_eye_detector
+from app.ai.civic_eye_model import get_civic_eye_detector
 
 
 class CivicEyeService:
@@ -22,7 +22,9 @@ class CivicEyeService:
     @staticmethod
     def get_model_status() -> Dict[str, Any]:
         """Return the current AI model load status and metadata."""
-        return civic_eye_detector.get_status()
+        from app.ai.civic_eye_model import get_civic_eye_status
+
+        return get_civic_eye_status()
 
     @staticmethod
     def analyze_image(file_bytes: bytes) -> Dict[str, Any]:
@@ -33,7 +35,7 @@ class CivicEyeService:
         priority, labels, bounding_boxes, model_source,
         annotated_image_b64, and total_detections.
         """
-        return civic_eye_detector.analyze_image(file_bytes)
+        return get_civic_eye_detector().analyze_image(file_bytes)
 
     # ── Storage ───────────────────────────────────────────────────────────────
 
@@ -60,6 +62,7 @@ class CivicEyeService:
         ai_confidence: Optional[float] = None,
         ai_bounding_boxes: Optional[List[Dict[str, Any]]] = None,
         model_source: Optional[str] = None,
+        ai_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Report a new civic issue with full AI metadata stored in Firestore/Supabase."""
         doc = create_civic_issue_doc(
@@ -75,12 +78,15 @@ class CivicEyeService:
             address=address,
             ai_detected_labels=ai_detected_labels,
             ai_confidence=ai_confidence,
+            ai_metadata=ai_metadata,
         )
         # Store additional AI metadata directly in the doc
         if ai_bounding_boxes is not None:
             doc["ai_bounding_boxes"] = ai_bounding_boxes
         if model_source is not None:
             doc["model_source"] = model_source
+        if ai_metadata is not None:
+            doc["ai_metadata"] = ai_metadata
 
         set_document(Collections.CIVIC_ISSUES, doc["id"], doc)
         return doc

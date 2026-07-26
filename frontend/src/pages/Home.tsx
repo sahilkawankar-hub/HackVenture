@@ -8,7 +8,6 @@ import MarketplacePreviewCard from "../components/dashboard/MarketplacePreviewCa
 import AiMatchesCard from "../components/dashboard/AiMatchesCard";
 import LocalJobsCard from "../components/dashboard/LocalJobsCard";
 import AIInsightsCard from "../components/dashboard/AIInsightsCard";
-import AiToast from "../components/dashboard/AiToast";
 
 /**
  * Home / Dashboard page — CiviLink AI Premium Design.
@@ -58,9 +57,6 @@ function Home() {
         {/* Bottom spacer */}
         <div className="h-6" />
       </div>
-
-      {/* Floating AI Toast */}
-      <AiToast />
     </div>
   );
 }

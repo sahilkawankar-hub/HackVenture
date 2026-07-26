@@ -13,7 +13,7 @@ const DEMO_JOBS: JobPosting[] = [
     description: "Looking for an energetic neighbor to walk our 2 friendly Labradors 3 times a week around Greenwood Park.",
     job_type: "freelance",
     category: "Pet Care",
-    pay_range: "$25 / hr",
+    pay_range: "₹500 / hr",
     location: "2 blocks away",
     requirements: ["Must love dogs", "Punctual & reliable", "Available weekday afternoons"],
     status: "open",
@@ -31,7 +31,7 @@ const DEMO_JOBS: JobPosting[] = [
     description: "Need help clearing overgrown weeds, trimming hedges, and mowing front & back lawn this Saturday.",
     job_type: "one_time",
     category: "Gardening",
-    pay_range: "$30 / hr",
+    pay_range: "₹600 / hr",
     location: "0.5 miles away",
     requirements: ["Lawn mower provided", "Able to lift 20 lbs", "3 hours estimated task time"],
     status: "open",
@@ -49,7 +49,7 @@ const DEMO_JOBS: JobPosting[] = [
     description: "Seeking a tutor for 10th grade Algebra II and Physics. 2 sessions per week at community library.",
     job_type: "part_time",
     category: "Tutoring",
-    pay_range: "$45 / hr",
+    pay_range: "₹800 / hr",
     location: "0.8 miles away",
     requirements: ["STEM background or college student", "Patient teaching style", "References preferred"],
     status: "open",
@@ -323,7 +323,7 @@ function Jobs() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold block mb-1" style={{ color: "var(--text-primary)" }}>Pay Rate</label>
-                    <input type="text" value={payRange} onChange={(e) => setPayRange(e.target.value)} placeholder="$25 / hr" className="input-base" />
+                    <input type="text" value={payRange} onChange={(e) => setPayRange(e.target.value)} placeholder="₹500 / hr" className="input-base" />
                   </div>
                   <div>
                     <label className="text-xs font-bold block mb-1" style={{ color: "var(--text-primary)" }}>Category</label>

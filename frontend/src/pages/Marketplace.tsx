@@ -14,8 +14,8 @@ const DEMO_PRODUCTS: MarketplaceListing[] = [
     community_id: "c1",
     title: "Vintage Mahogany Wood Coffee Table",
     description: "Solid mahogany wood coffee table with soft finish and shelf drawer. Moving out sale!",
-    price: 45,
-    currency: "USD",
+    price: 3500,
+    currency: "INR",
     category: "Furniture",
     condition: "like_new",
     image_urls: ["https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&w=800&q=80"],
@@ -32,8 +32,8 @@ const DEMO_PRODUCTS: MarketplaceListing[] = [
     community_id: "c1",
     title: "Modern Charcoal Hybrid Commuter Bike",
     description: "Lightweight aluminum frame, 21-speed Shimano gears, newly tuned brakes.",
-    price: 210,
-    currency: "USD",
+    price: 15000,
+    currency: "INR",
     category: "Vehicles",
     condition: "good",
     image_urls: ["https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80"],
@@ -50,8 +50,8 @@ const DEMO_PRODUCTS: MarketplaceListing[] = [
     community_id: "c1",
     title: "4K UHD Smart Monitor 27-inch",
     description: "Ultra HD IPS panel with USB-C hub built-in. Comes with original stand and box.",
-    price: 180,
-    currency: "USD",
+    price: 14000,
+    currency: "INR",
     category: "Electronics",
     condition: "like_new",
     image_urls: ["https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=800&q=80"],
@@ -108,7 +108,7 @@ function Marketplace() {
       title,
       description,
       price: parseFloat(price),
-      currency: "USD",
+      currency: "INR",
       category: cat,
       condition,
       image_urls: ["https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80"],
@@ -243,7 +243,7 @@ function Marketplace() {
                   <div>
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-extrabold text-sm line-clamp-1" style={{ color: "var(--text-primary)" }}>{product.title}</h3>
-                      <span className="text-base font-black text-[#10b981]">${product.price}</span>
+                      <span className="text-base font-black text-[#10b981]">₹{product.price.toLocaleString("en-IN")}</span>
                     </div>
                     <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--text-secondary)" }}>{product.description}</p>
                   </div>
@@ -286,7 +286,7 @@ function Marketplace() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-bold block mb-1" style={{ color: "var(--text-primary)" }}>Price ($) *</label>
+                    <label className="text-xs font-bold block mb-1" style={{ color: "var(--text-primary)" }}>Price (₹) *</label>
                     <input type="number" required value={price} onChange={(e) => setPrice(e.target.value)} placeholder="45" className="input-base" />
                   </div>
                   <div>

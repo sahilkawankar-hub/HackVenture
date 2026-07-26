@@ -27,14 +27,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"[WARN] Supabase initialization warning: {exc}")
 
-    # 2. Pre-import the AI module so the background loader thread starts NOW,
-    #    giving the Road Damage model the maximum time to download before the
-    #    first /detect request arrives.
+    # 2. Leave the AI model unloaded until first use so startup and tests stay
+    #    lightweight.
     try:
-        from app.ai.civic_eye_model import civic_eye_detector  # noqa: F401
-        print("[INFO] CivicEye AI: Background model loader thread started.")
+        from app.ai.civic_eye_model import get_civic_eye_status
+
+        status = get_civic_eye_status()
+        print(f"[INFO] CivicEye AI status: {status['model_source']}")
     except Exception as exc:
-        print(f"[WARN] CivicEye AI loader import failed: {exc}")
+        print(f"[WARN] CivicEye AI status check failed: {exc}")
 
     yield
     # ── Shutdown ──────────────────────────────────────────────────────────────
@@ -88,8 +89,9 @@ async def health_check():
 
     # AI model status
     try:
-        from app.ai.civic_eye_model import civic_eye_detector
-        ai_status = civic_eye_detector.get_status()
+        from app.ai.civic_eye_model import get_civic_eye_status
+
+        ai_status = get_civic_eye_status()
     except Exception:
         ai_status = {"is_ready": False, "model_source": "unavailable"}
 

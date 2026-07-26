@@ -18,6 +18,8 @@ class BoundingBox(BaseModel):
 
 class AIDetectionResponse(BaseModel):
     """Response schema for the AI image detection endpoint."""
+    model_config = {"protected_namespaces": ()}
+
     detected_issue: str
     confidence_score: float = Field(ge=0.0, le=1.0)
     suggested_category: str
@@ -33,10 +35,16 @@ class AIDetectionResponse(BaseModel):
         description="Base-64 encoded JPEG of the image with bounding boxes drawn",
     )
     total_detections: int = Field(default=0)
+    ai_metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional AI outputs such as OCR, segmentation, text sentiment, and summaries",
+    )
 
 
 class ModelStatusResponse(BaseModel):
     """Response schema for the AI model status endpoint."""
+    model_config = {"protected_namespaces": ()}
+
     is_ready: bool
     model_source: str = Field(
         description="huggingface_road_damage | yolov8n_coco | heuristic | loading"
@@ -61,6 +69,7 @@ class CivicIssueCreate(BaseModel):
     address: Optional[str] = None
     ai_detected_labels: Optional[List[str]] = None
     ai_confidence: Optional[float] = None
+    ai_metadata: Optional[Dict[str, Any]] = None
 
 
 class CivicIssueStatusUpdate(BaseModel):
@@ -71,6 +80,8 @@ class CivicIssueStatusUpdate(BaseModel):
 
 class CivicIssueResponse(BaseModel):
     """Schema for civic issue API response."""
+    model_config = {"protected_namespaces": ()}
+
     id: str
     reporter_id: str
     community_id: str
@@ -84,6 +95,7 @@ class CivicIssueResponse(BaseModel):
     ai_confidence: Optional[float] = None
     ai_bounding_boxes: Optional[List[Dict[str, Any]]] = None
     model_source: Optional[str] = None
+    ai_metadata: Optional[Dict[str, Any]] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     address: Optional[str] = None
