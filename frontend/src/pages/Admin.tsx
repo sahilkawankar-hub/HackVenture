@@ -1,10 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ShieldAlert, CheckCircle2, FileText,
-  Download, Shield, MapPin
+  Download, Shield, MapPin, RefreshCw, Loader2
 } from "lucide-react";
 import { useToast } from "../components/common/Toast";
-import { getAdminStats, AdminStats } from "../api/admin";
+import {
+  getAdminStats,
+  getAdminComplaints,
+  getAdminUsers,
+  updateComplaintStatus,
+  updateUserStatus,
+  AdminStats,
+} from "../api/admin";
 
 interface AdminComplaint {
   id: string;
@@ -15,6 +22,9 @@ interface AdminComplaint {
   status: "Pending" | "In Progress" | "Resolved";
   date: string;
   department: string;
+  description?: string;
+  image_urls?: string[];
+  address?: string;
 }
 
 interface AdminUser {
@@ -27,53 +37,138 @@ interface AdminUser {
   joinedDate: string;
 }
 
-const mockComplaints: AdminComplaint[] = [
-  { id: "CE-9041", title: "Deep Pothole on Elm Street", category: "Road Damage", reporter: "Alex Johnson", severity: "high", status: "In Progress", date: "Jul 24, 10:15 AM", department: "Public Works" },
-  { id: "CE-8920", title: "Burst Water Pipe near 5th Ave", category: "Water Leakage", reporter: "Marcus Vance", severity: "critical", status: "In Progress", date: "Jul 24, 09:30 AM", department: "Sanitation Dept" },
-  { id: "CE-8102", title: "Overflowing Dumpster in Alley", category: "Waste Management", reporter: "Elena R.", severity: "medium", status: "Pending", date: "Jul 23, 04:20 PM", department: "Waste Services" },
-  { id: "CE-7712", title: "Broken Streetlight Lamp #42", category: "Electrical", reporter: "Sarah Jenkins", severity: "low", status: "Resolved", date: "Jul 23, 02:00 PM", department: "Energy Bureau" },
-];
-
-const mockUsers: AdminUser[] = [
-  { id: "U-1", name: "Alex Johnson", email: "alex.johnson@example.com", role: "Resident", reputation: 94, status: "Active", joinedDate: "Jan 2025" },
-  { id: "U-2", name: "Sarah Jenkins", email: "sarah.j@example.com", role: "Moderator", reputation: 98, status: "Active", joinedDate: "Mar 2024" },
-  { id: "U-3", name: "Marcus Vance", email: "marcus.vance@example.com", role: "Resident", reputation: 88, status: "Active", joinedDate: "Jun 2025" },
-  { id: "U-4", name: "Spammer Account", email: "spammer99@temp.net", role: "Resident", reputation: 12, status: "Flagged", joinedDate: "Jul 2026" },
-];
-
 function Admin() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"analytics" | "complaints" | "users" | "heatmap">("analytics");
-  const [complaints, setComplaints] = useState<AdminComplaint[]>(mockComplaints);
-  const [users, setUsers] = useState<AdminUser[]>(mockUsers);
+  const [complaints, setComplaints] = useState<AdminComplaint[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [isLoadingComplaints, setIsLoadingComplaints] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats>({
-    today_reports: 12,
-    open_reports: 28,
-    resolved_reports: 142,
-    critical_issues: 3,
-    monthly_reports: 184,
-    resolution_rate: 92.4,
-    avg_resolution_hours: 18.4,
-    active_users: 2341,
+    today_reports: 0,
+    open_reports: 0,
+    resolved_reports: 0,
+    critical_issues: 0,
+    monthly_reports: 0,
+    resolution_rate: 0,
+    avg_resolution_hours: 0,
+    active_users: 0,
   });
 
-  useEffect(() => {
-    getAdminStats().then(setStats).catch(() => {});
+  // ── Fetch Stats ───────────────────────────────────────────────────────────
+  const fetchStats = useCallback(() => {
+    getAdminStats()
+      .then(setStats)
+      .catch(() => {}); // Silently use defaults if backend is unavailable
   }, []);
 
-  const handleStatusChange = (id: string, newStatus: AdminComplaint["status"]) => {
+  // ── Fetch Complaints ──────────────────────────────────────────────────────
+  const fetchComplaints = useCallback(async () => {
+    setIsLoadingComplaints(true);
+    try {
+      const filter = statusFilter !== "All" ? statusFilter : undefined;
+      const data = await getAdminComplaints({ status: filter, limit: 100 });
+      const mapped: AdminComplaint[] = data.map((item) => ({
+        id: String(item.id ?? ""),
+        title: String(item.title ?? "Untitled"),
+        category: String(item.category ?? "General"),
+        reporter: String(item.reporter ?? "Unknown"),
+        severity: (String(item.severity ?? "medium").toLowerCase() as AdminComplaint["severity"]),
+        status: (item.status as AdminComplaint["status"]) ?? "Pending",
+        date: String(item.date ?? ""),
+        department: String(item.department ?? "Public Works"),
+        description: item.description ? String(item.description) : undefined,
+        image_urls: Array.isArray(item.image_urls) ? (item.image_urls as string[]) : [],
+        address: item.address ? String(item.address) : undefined,
+      }));
+      setComplaints(mapped);
+    } catch {
+      // Keep existing complaints on failure
+    } finally {
+      setIsLoadingComplaints(false);
+    }
+  }, [statusFilter]);
+
+  // ── Fetch Users ───────────────────────────────────────────────────────────
+  const fetchUsers = useCallback(async () => {
+    setIsLoadingUsers(true);
+    try {
+      const data = await getAdminUsers();
+      const mapped: AdminUser[] = data.map((item) => ({
+        id: String(item.id ?? ""),
+        name: String(item.name ?? "User"),
+        email: String(item.email ?? ""),
+        role: (item.role as AdminUser["role"]) ?? "Resident",
+        reputation: Number(item.reputation ?? 90),
+        status: (item.status as AdminUser["status"]) ?? "Active",
+        joinedDate: String(item.joinedDate ?? ""),
+      }));
+      setUsers(mapped);
+    } catch {
+      // Keep existing users on failure
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // Load complaints when tab or filter changes
+  useEffect(() => {
+    if (activeTab === "complaints") {
+      fetchComplaints();
+    }
+  }, [activeTab, fetchComplaints]);
+
+  // Load users when tab changes
+  useEffect(() => {
+    if (activeTab === "users") {
+      fetchUsers();
+    }
+  }, [activeTab, fetchUsers]);
+
+  // ── Status Updates ────────────────────────────────────────────────────────
+  const handleStatusChange = async (id: string, newStatus: AdminComplaint["status"]) => {
+    // Optimistic update
     setComplaints((prev) =>
       prev.map((c) => (c.id === id ? { ...c, status: newStatus } : c))
     );
-    toast(`Complaint ${id} status updated to ${newStatus}`, "success");
+    setUpdatingId(id);
+    try {
+      await updateComplaintStatus(id, newStatus);
+      toast(`Complaint ${id} updated to "${newStatus}"`, "success");
+      // Refresh stats since counts may have changed
+      fetchStats();
+    } catch {
+      // Revert optimistic update on failure
+      fetchComplaints();
+      toast(`Failed to update complaint ${id}`, "error");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
-  const handleUserStatusChange = (id: string, newStatus: AdminUser["status"]) => {
+  const handleUserStatusChange = async (id: string, newStatus: AdminUser["status"]) => {
+    // Optimistic update
     setUsers((prev) =>
       prev.map((u) => (u.id === id ? { ...u, status: newStatus } : u))
     );
-    toast(`User status updated to ${newStatus}`, "info");
+    setUpdatingId(id);
+    try {
+      const apiStatus = newStatus.toLowerCase() as "active" | "suspended" | "flagged";
+      await updateUserStatus(id, apiStatus);
+      toast(`User status updated to "${newStatus}"`, "info");
+    } catch {
+      fetchUsers();
+      toast(`Failed to update user status`, "error");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const filteredComplaints = complaints.filter(
@@ -101,6 +196,13 @@ function Admin() {
           </div>
 
           <div className="flex gap-2">
+            <button
+              onClick={() => { fetchStats(); fetchComplaints(); fetchUsers(); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border transition-all bg-white dark:bg-slate-800 hover:bg-slate-50"
+              style={{ borderColor: "var(--border-color)", color: "var(--text-primary)" }}
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
             <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border transition-all bg-white dark:bg-slate-800 hover:bg-slate-50" style={{ borderColor: "var(--border-color)", color: "var(--text-primary)" }}>
               <Download className="w-4 h-4" /> Export Report CSV
             </button>
@@ -115,7 +217,7 @@ function Admin() {
               <FileText className="w-4 h-4 text-[#2563eb]" />
             </div>
             <p className="text-3xl font-black" style={{ color: "var(--text-primary)" }}>{stats.today_reports}</p>
-            <p className="text-[11px] text-emerald-600 font-semibold">+18% vs yesterday</p>
+            <p className="text-[11px] text-emerald-600 font-semibold">Live from database</p>
           </div>
 
           <div className="card p-5 space-y-2">
@@ -142,7 +244,9 @@ function Admin() {
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
             <p className="text-3xl font-black text-emerald-600">{stats.resolution_rate}%</p>
-            <p className="text-[11px] text-emerald-600 font-semibold">Target &gt; 90% reached</p>
+            <p className="text-[11px] text-emerald-600 font-semibold">
+              {stats.resolution_rate >= 90 ? "Target > 90% reached" : "Working toward 90%"}
+            </p>
           </div>
         </div>
 
@@ -150,8 +254,8 @@ function Admin() {
         <div className="card p-2 flex gap-1 overflow-x-auto">
           {[
             { id: "analytics",  label: "Analytics & Resolution Rate" },
-            { id: "complaints", label: `Complaint Queue (${complaints.length})` },
-            { id: "users",      label: `User Moderation (${users.length})` },
+            { id: "complaints", label: `Complaint Queue (${stats.open_reports + stats.resolved_reports || complaints.length})` },
+            { id: "users",      label: `User Moderation (${users.length || stats.active_users})` },
             { id: "heatmap",    label: "Geographic Heatmap" },
           ].map((t) => (
             <button
@@ -175,7 +279,7 @@ function Admin() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Monthly Issue Resolution Velocity</h3>
-                  <p className="text-xs text-[#94a3b8]">Average fix turnaround: 18.4 Hours</p>
+                  <p className="text-xs text-[#94a3b8]">Average fix turnaround: {stats.avg_resolution_hours}h</p>
                 </div>
                 <span className="badge badge-green">+15% Turnaround Speed</span>
               </div>
@@ -187,7 +291,7 @@ function Admin() {
                   { label: "Apr", height: "75%" },
                   { label: "May", height: "80%" },
                   { label: "Jun", height: "92%" },
-                  { label: "Jul", height: "95%" },
+                  { label: "Jul", height: `${Math.min(100, Math.max(20, stats.resolution_rate))}%` },
                 ].map((bar, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
                     <div className="w-full bg-[#2563eb] rounded-t-lg transition-all group-hover:bg-[#1d4ed8]" style={{ height: bar.height }} />
@@ -198,13 +302,13 @@ function Admin() {
             </div>
 
             <div className="lg:col-span-4 card p-6 space-y-4">
-              <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Complaints by Department</h3>
+              <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Issue Summary</h3>
               <div className="space-y-3 text-xs">
                 {[
-                  { name: "Public Works (Roads)", count: 42, pct: 45, color: "bg-[#2563eb]" },
-                  { name: "Water & Sanitation", count: 28, pct: 30, color: "bg-cyan-500" },
-                  { name: "Power & Electrical", count: 14, pct: 15, color: "bg-amber-500" },
-                  { name: "Parks & Recreation", count: 9, pct: 10, color: "bg-emerald-500" },
+                  { name: "Total Reports", count: stats.monthly_reports, pct: 100, color: "bg-[#2563eb]" },
+                  { name: "Open / In Progress", count: stats.open_reports, pct: stats.monthly_reports ? Math.round(stats.open_reports / stats.monthly_reports * 100) : 0, color: "bg-amber-500" },
+                  { name: "Resolved", count: stats.resolved_reports, pct: stats.monthly_reports ? Math.round(stats.resolved_reports / stats.monthly_reports * 100) : 0, color: "bg-emerald-500" },
+                  { name: "Critical", count: stats.critical_issues, pct: stats.monthly_reports ? Math.round(stats.critical_issues / stats.monthly_reports * 100) : 0, color: "bg-red-500" },
                 ].map((dept, i) => (
                   <div key={i} className="space-y-1">
                     <div className="flex justify-between font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -225,7 +329,7 @@ function Admin() {
         {activeTab === "complaints" && (
           <div className="card overflow-hidden">
             <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {["All", "Pending", "In Progress", "Resolved"].map((s) => (
                   <button
                     key={s}
@@ -238,102 +342,149 @@ function Admin() {
                   </button>
                 ))}
               </div>
+              {isLoadingComplaints && (
+                <span className="flex items-center gap-1.5 text-xs text-[#94a3b8]">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
+                </span>
+              )}
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800 text-[#94a3b8] font-bold border-b" style={{ borderColor: "var(--border-color)" }}>
-                  <tr>
-                    <th className="p-4">ID &amp; Title</th>
-                    <th className="p-4">Category</th>
-                    <th className="p-4">Severity</th>
-                    <th className="p-4">Assigned Dept</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y" style={{ borderColor: "var(--border-color)" }}>
-                  {filteredComplaints.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                      <td className="p-4">
-                        <span className="font-bold text-[#2563eb]">{c.id}</span>
-                        <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{c.title}</p>
-                        <span className="text-[10px] text-[#94a3b8]">By {c.reporter} · {c.date}</span>
-                      </td>
-                      <td className="p-4 font-medium" style={{ color: "var(--text-primary)" }}>{c.category}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          c.severity === "critical" ? "bg-red-100 text-red-700" : c.severity === "high" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
-                        }`}>
-                          {c.severity}
-                        </span>
-                      </td>
-                      <td className="p-4 font-semibold" style={{ color: "var(--text-primary)" }}>{c.department}</td>
-                      <td className="p-4">
-                        <span className="badge badge-blue">{c.status}</span>
-                      </td>
-                      <td className="p-4">
-                        <select
-                          value={c.status}
-                          onChange={(e) => handleStatusChange(c.id, e.target.value as any)}
-                          className="input-base py-1 px-2 text-xs w-auto"
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Resolved">Resolved</option>
-                        </select>
-                      </td>
+
+            {filteredComplaints.length === 0 && !isLoadingComplaints ? (
+              <div className="p-12 text-center text-sm text-[#94a3b8]">
+                <ShieldAlert className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-semibold">No complaints found</p>
+                <p className="text-xs mt-1">Reports submitted by users will appear here in real-time.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800 text-[#94a3b8] font-bold border-b" style={{ borderColor: "var(--border-color)" }}>
+                    <tr>
+                      <th className="p-4">ID & Title</th>
+                      <th className="p-4">Category</th>
+                      <th className="p-4">Severity</th>
+                      <th className="p-4">Assigned Dept</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y" style={{ borderColor: "var(--border-color)" }}>
+                    {filteredComplaints.map((c) => (
+                      <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                        <td className="p-4">
+                          <span className="font-bold text-[#2563eb]">{c.id}</span>
+                          <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{c.title}</p>
+                          <span className="text-[10px] text-[#94a3b8]">By {c.reporter} · {c.date}</span>
+                          {c.address && (
+                            <p className="text-[10px] text-[#94a3b8] flex items-center gap-0.5 mt-0.5">
+                              <MapPin className="w-2.5 h-2.5" /> {c.address}
+                            </p>
+                          )}
+                        </td>
+                        <td className="p-4 font-medium" style={{ color: "var(--text-primary)" }}>{c.category}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            c.severity === "critical" ? "bg-red-100 text-red-700"
+                            : c.severity === "high" ? "bg-amber-100 text-amber-700"
+                            : c.severity === "medium" ? "bg-orange-100 text-orange-700"
+                            : "bg-emerald-100 text-emerald-700"
+                          }`}>
+                            {c.severity}
+                          </span>
+                        </td>
+                        <td className="p-4 font-semibold" style={{ color: "var(--text-primary)" }}>{c.department}</td>
+                        <td className="p-4">
+                          <span className={`badge ${
+                            c.status === "Resolved" ? "badge-green"
+                            : c.status === "In Progress" ? "badge-blue"
+                            : "badge-red"
+                          }`}>{c.status}</span>
+                        </td>
+                        <td className="p-4">
+                          {updatingId === c.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[#2563eb]" />
+                          ) : (
+                            <select
+                              value={c.status}
+                              onChange={(e) => handleStatusChange(c.id, e.target.value as any)}
+                              className="input-base py-1 px-2 text-xs w-auto"
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="In Progress">In Progress</option>
+                              <option value="Resolved">Resolved</option>
+                            </select>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
         {/* ── User Moderation View ──────────────────────────────────────── */}
         {activeTab === "users" && (
           <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800 text-[#94a3b8] font-bold border-b" style={{ borderColor: "var(--border-color)" }}>
-                  <tr>
-                    <th className="p-4">User</th>
-                    <th className="p-4">Role</th>
-                    <th className="p-4">Reputation</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Moderation Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y" style={{ borderColor: "var(--border-color)" }}>
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                      <td className="p-4">
-                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{u.name}</p>
-                        <p className="text-[10px] text-[#94a3b8]">{u.email}</p>
-                      </td>
-                      <td className="p-4 font-semibold" style={{ color: "var(--text-primary)" }}>{u.role}</td>
-                      <td className="p-4 font-bold text-emerald-600">{u.reputation}/100</td>
-                      <td className="p-4">
-                        <span className={`badge ${u.status === "Active" ? "badge-green" : "badge-red"}`}>
-                          {u.status}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <select
-                          value={u.status}
-                          onChange={(e) => handleUserStatusChange(u.id, e.target.value as any)}
-                          className="input-base py-1 px-2 text-xs w-auto"
-                        >
-                          <option value="Active">Active</option>
-                          <option value="Flagged">Flagged</option>
-                          <option value="Suspended">Suspended</option>
-                        </select>
-                      </td>
+            {isLoadingUsers && (
+              <div className="p-4 flex items-center gap-2 text-xs text-[#94a3b8]">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading users…
+              </div>
+            )}
+            {users.length === 0 && !isLoadingUsers ? (
+              <div className="p-12 text-center text-sm text-[#94a3b8]">
+                <p className="font-semibold">No users found</p>
+                <p className="text-xs mt-1">Registered users will appear here.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800 text-[#94a3b8] font-bold border-b" style={{ borderColor: "var(--border-color)" }}>
+                    <tr>
+                      <th className="p-4">User</th>
+                      <th className="p-4">Role</th>
+                      <th className="p-4">Reputation</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Moderation Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y" style={{ borderColor: "var(--border-color)" }}>
+                    {users.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                        <td className="p-4">
+                          <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{u.name}</p>
+                          <p className="text-[10px] text-[#94a3b8]">{u.email}</p>
+                          <p className="text-[10px] text-[#94a3b8]">Joined: {u.joinedDate}</p>
+                        </td>
+                        <td className="p-4 font-semibold" style={{ color: "var(--text-primary)" }}>{u.role}</td>
+                        <td className="p-4 font-bold text-emerald-600">{u.reputation}/100</td>
+                        <td className="p-4">
+                          <span className={`badge ${u.status === "Active" ? "badge-green" : u.status === "Flagged" ? "badge-amber" : "badge-red"}`}>
+                            {u.status}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          {updatingId === u.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[#2563eb]" />
+                          ) : (
+                            <select
+                              value={u.status}
+                              onChange={(e) => handleUserStatusChange(u.id, e.target.value as any)}
+                              className="input-base py-1 px-2 text-xs w-auto"
+                            >
+                              <option value="Active">Active</option>
+                              <option value="Flagged">Flagged</option>
+                              <option value="Suspended">Suspended</option>
+                            </select>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -347,7 +498,7 @@ function Admin() {
               <div className="p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl shadow-md text-center text-xs space-y-1">
                 <MapPin className="w-6 h-6 text-[#2563eb] mx-auto" />
                 <p className="font-bold" style={{ color: "var(--text-primary)" }}>Geographic Cluster Analysis Active</p>
-                <p className="text-[11px] text-[#94a3b8]">Density Peak: Elm Street &amp; 5th Ave Intersection</p>
+                <p className="text-[11px] text-[#94a3b8]">{stats.monthly_reports} total reports across {stats.active_users} active citizens</p>
               </div>
             </div>
           </div>

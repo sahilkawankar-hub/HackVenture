@@ -16,6 +16,7 @@ startup is never blocked.
 
 from __future__ import annotations
 
+import os
 import io
 import base64
 import threading
@@ -159,7 +160,7 @@ ROAD_DAMAGE_CLASS_MAP: Dict[str, str] = {
 }
 
 # Confidence threshold — detections below this are ignored
-CONFIDENCE_THRESHOLD: float = 0.25
+CONFIDENCE_THRESHOLD: float = 0.30
 
 # Box colours per priority (RGB)
 PRIORITY_COLOURS: Dict[str, Tuple[int, int, int]] = {
@@ -394,7 +395,8 @@ class CivicEyeDetector:
             "notes": [],
         }
 
-        ocr_text = self._extract_image_text(img)
+        enable_heavy = os.getenv("CIVILINK_ENABLE_HEAVY_LLMS", "false").lower() in {"1", "true", "yes"}
+        ocr_text = self._extract_image_text(img) if enable_heavy else ""
         if ocr_text:
             metadata["ocr_text"] = ocr_text
             from app.ai.text_classifier import (
@@ -415,7 +417,7 @@ class CivicEyeDetector:
             if any(keyword in ocr_text.lower() for keyword in ["danger", "fire", "smoke", "hazard", "spill", "leak", "pothole", "garbage", "trash", "waste", "no parking"]):
                 metadata["text_signal"] = "safety_or_maintenance_warning"
 
-        segmentation_summary = self._run_sam2_segmentation(img)
+        segmentation_summary = self._run_sam2_segmentation(img) if enable_heavy else None
         if segmentation_summary:
             metadata["segmentation"] = segmentation_summary
             metadata["notes"].append("SAM2 mask generation completed for object segmentation." )
@@ -547,8 +549,52 @@ class CivicEyeDetector:
                     "total_detections": len(boxes_data),
                 }
 
-            # If primary YOLO model returned no specific road bounding boxes,
-            # run Smart Universal AI Vision Classifier to detect Fire, Trees, Water, Garbage, etc.
+            # Primary YOLO found no boxes.
+            # Step 2: Try the waste detection model if it is loaded and distinct from the primary.
+            with self._lock:
+                waste_model = self.waste_model
+
+            if waste_model is not None and waste_model is not model:
+                try:
+                    waste_results = waste_model(img, verbose=False, conf=CONFIDENCE_THRESHOLD)
+                    for r in waste_results:
+                        for box in r.boxes:
+                            cls_id = int(box.cls[0])
+                            raw_class = waste_model.names.get(cls_id, "unknown")
+                            conf = float(box.conf[0])
+                            if conf >= CONFIDENCE_THRESHOLD:
+                                civic_key = self._resolve_civic_key(raw_class)
+                                label_info = CIVIC_CATEGORIES_MAP.get(
+                                    civic_key,
+                                    {
+                                        "label": raw_class.replace("_", " ").title(),
+                                        "category": "Waste & Sanitation",
+                                        "priority": "medium",
+                                    },
+                                )
+                                box_coords = [round(v, 2) for v in box.xyxy[0].tolist()]
+                                box_entry = {
+                                    "box": box_coords,
+                                    "label": label_info["label"],
+                                    "confidence": round(conf, 3),
+                                    "priority": label_info["priority"],
+                                }
+                                annotated_b64 = self._draw_boxes(img, [box_entry])
+                                return {
+                                    "detected_issue": label_info["label"],
+                                    "confidence_score": round(conf, 3),
+                                    "suggested_category": label_info["category"],
+                                    "priority": label_info["priority"],
+                                    "labels": [label_info["label"]],
+                                    "bounding_boxes": [box_entry],
+                                    "model_source": "HrutikAdsare/waste-detection-yolov8",
+                                    "annotated_image_b64": annotated_b64,
+                                    "total_detections": 1,
+                                }
+                except Exception as waste_err:
+                    print(f"[WARN] Waste model inference failed: {waste_err}")
+
+            # Step 3: Neither YOLO model found confident boxes — use CLIP zero-shot classifier.
             return self._smart_vision_classifier(file_bytes, img, source)
 
         except Exception as exc:
@@ -667,192 +713,159 @@ class CivicEyeDetector:
 
     def _smart_vision_classifier(self, file_bytes: bytes, img: Any, source: str) -> Dict[str, Any]:
         """
-        Smart Universal Vision Classifier:
-        Uses openai/clip-vit-base-patch32 (if available) for precise zero-shot classification,
-        falling back to spatial grid sampling and multi-hazard priority rules.
+        CLIP-based zero-shot image classifier (fallback when YOLO finds no boxes).
+
+        Confidence strategy (relative, not absolute):
+        - Runs CLIP with 7 civic-issue labels + 1 "no hazard" escape label.
+        - Accepts a civic answer if its score is > 1.6x the "no hazard" score
+          AND exceeds 0.18 (well above 1/8 = 12.5% random baseline).
+        - This avoids both the old false-positives (colour heuristic)
+          and new false-negatives (too-strict 0.35 cutoff dropping real issues).
         """
-        try:
-            if img:
-                # --- 1. HUGGING FACE CLIP ZERO-SHOT CLASSIFICATION ---
-                if self.clip_pipeline:
-                    candidate_labels = [
-                        "an open manhole or uncovered drain pit on the road",
-                        "a fallen tree or overgrown vegetation blocking the road",
-                        "a bright open flame, fire, or smoke hazard",
-                        "water leakage, flooding, or sewage overflow on the street",
-                        "a severe pothole or large road surface crack",
-                        "overflowing garbage or trash dump",
-                        "an illegal parking or abandoned vehicle on the street"
-                    ]
-                    try:
-                        res = self.clip_pipeline(img, candidate_labels=candidate_labels)
-                        if res and isinstance(res, list) and len(res) > 0:
-                            top_label = res[0]["label"]
-                            top_score = res[0]["score"]
-                            
-                            clip_map = {
-                                "open manhole": "open_manhole",
-                                "fallen tree": "fallen_tree",
-                                "open flame": "fire_hazard",
-                                "water leakage": "water_leakage",
-                                "pothole": "pothole",
-                                "garbage": "garbage",
-                                "illegal parking": "illegal_parking"
+        # Absolute floor — must clear the random baseline meaningfully
+        CLIP_ABS_FLOOR = 0.18
+        # Relative multiplier — civic score must beat "no hazard" by this factor
+        CLIP_REL_RATIO = 1.6
+
+        if img and self.clip_pipeline:
+            # 7 specific civic labels + 1 "no hazard" escape label
+            civic_labels = [
+                "a road with potholes, deep holes or severe surface cracking",
+                "overflowing garbage bins, trash piles or illegal waste dumping",
+                "flooding, a burst water pipe or sewage overflow on a street",
+                "an uncovered open manhole or exposed drain pit on a road",
+                "a fallen tree or large branches blocking a road",
+                "fire, open flames or thick smoke coming from something",
+                "a broken or damaged streetlight pole or exposed electrical wire",
+            ]
+            no_hazard_label = "a normal street, building or outdoor scene with no civic hazard"
+            all_labels = civic_labels + [no_hazard_label]
+
+            clip_key_map = {
+                "pothole":            "pothole",
+                "surface cracking":   "road_crack",
+                "garbage":            "garbage",
+                "trash":              "garbage",
+                "waste dumping":      "garbage",
+                "flooding":           "water_leakage",
+                "water pipe":         "water_leakage",
+                "sewage":             "water_leakage",
+                "manhole":            "open_manhole",
+                "drain pit":          "open_manhole",
+                "fallen tree":        "fallen_tree",
+                "branches blocking":  "fallen_tree",
+                "fire":               "fire_hazard",
+                "flames":             "fire_hazard",
+                "smoke":              "fire_hazard",
+                "streetlight":        "damaged_streetlight",
+                "electrical wire":    "damaged_streetlight",
+            }
+
+            try:
+                res = self.clip_pipeline(img, candidate_labels=all_labels)
+                if res and isinstance(res, list) and len(res) > 0:
+                    # Build score lookup dict
+                    scores: Dict[str, float] = {item["label"]: float(item["score"]) for item in res}
+                    no_hazard_score: float = scores.get(no_hazard_label, 0.0)
+
+                    # Log top-3 scores for diagnostics
+                    top3 = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+                    for lbl, sc in top3:
+                        print(f"[INFO] CLIP  {sc:.2%}  '{lbl[:65]}'")
+
+                    # Find best-scoring civic label (exclude no_hazard)
+                    best_civic_label = ""
+                    best_civic_score = 0.0
+                    for label in civic_labels:
+                        sc = scores.get(label, 0.0)
+                        if sc > best_civic_score:
+                            best_civic_score = sc
+                            best_civic_label = label
+
+                    ratio = best_civic_score / (no_hazard_score + 1e-9)
+                    print(f"[INFO] CLIP best_civic={best_civic_score:.2%}  no_hazard={no_hazard_score:.2%}  ratio={ratio:.2f}x")
+
+                    # Accept if: above floor AND beats no-hazard by required ratio
+                    if best_civic_score >= CLIP_ABS_FLOOR and ratio >= CLIP_REL_RATIO:
+                        matched_key: Optional[str] = None
+                        for keyword, civic_key in clip_key_map.items():
+                            if keyword in best_civic_label.lower():
+                                matched_key = civic_key
+                                break
+
+                        if matched_key:
+                            info = CIVIC_CATEGORIES_MAP[matched_key]
+                            return {
+                                "detected_issue": info["label"],
+                                "confidence_score": round(best_civic_score, 3),
+                                "suggested_category": info["category"],
+                                "priority": info["priority"],
+                                "labels": [info["label"], "CLIP Zero-Shot Classification"],
+                                "bounding_boxes": [],
+                                "model_source": f"{source}_clip_zero_shot",
+                                "annotated_image_b64": None,
+                                "total_detections": 1,
                             }
-                            
-                            matched_key = None
-                            for k, v in clip_map.items():
-                                if k in top_label:
-                                    matched_key = v
-                                    break
-                                    
-                            if matched_key and top_score > 0.15:
-                                info = CIVIC_CATEGORIES_MAP[matched_key]
-                                return {
-                                    "detected_issue": info["label"],
-                                    "confidence_score": round(float(top_score), 2),
-                                    "suggested_category": info["category"],
-                                    "priority": info["priority"],
-                                    "labels": [info["label"], "CLIP Zero-Shot AI Prediction"],
-                                    "bounding_boxes": [],
-                                    "model_source": f"{source}_clip_zero_shot",
-                                    "annotated_image_b64": None,
-                                    "total_detections": 1
-                                }
-                    except Exception as clip_err:
-                        print(f"[WARN] CLIP prediction failed: {clip_err}")
 
-                # --- 2. FALLBACK: SPATIAL GRID SAMPLING (Color Heuristics) ---
-                width, height = img.size
-                grid_w, grid_h = 80, 80
-                small_img = img.resize((grid_w, grid_h))
-                pixels = list(small_img.getdata())
+                    # Civic label did not win confidently
+                    return self._honest_low_confidence_result(source, best_civic_score)
 
-                red_fire_count = 0
-                foreground_tree_count = 0
-                ground_dark_pit_count = 0
-                blue_water_count = 0
-                total_foreground_pixels = 0
+            except Exception as clip_err:
+                print(f"[WARN] CLIP prediction failed: {clip_err}")
 
-                for y in range(grid_h):
-                    for x in range(grid_w):
-                        idx = y * grid_w + x
-                        pixel = pixels[idx]
-                        if not isinstance(pixel, tuple) or len(pixel) < 3:
-                            continue
-                        r, g, b = pixel[0], pixel[1], pixel[2]
-                        is_foreground = y > (grid_h * 0.3)  # Lower 70% of image (road/ground)
+        # CLIP not loaded
+        return self._honest_low_confidence_result(source, 0.0)
 
-                        # 1. Fire / Flame spectrum (High Red & Orange)
-                        if r > 145 and g > 40 and (r - b) > 50:
-                            red_fire_count += 1
-
-                        # 2. Foreground Ground Dark Pit / Open Manhole Aperture
-                        if is_foreground and r < 45 and g < 45 and b < 45:
-                            ground_dark_pit_count += 1
-
-                        # 3. Foreground Vegetation / Fallen Tree Blockade
-                        if is_foreground:
-                            total_foreground_pixels += 1
-                            if (g > r + 15 and g > b + 15) or (r > 70 and g > 50 and b < 50 and abs(r - g) < 40 and (r - b) > 20):
-                                foreground_tree_count += 1
-
-                        # 4. Blue / Water leakage spectrum
-                        if is_foreground and b > r + 15 and b > g + 10:
-                            blue_water_count += 1
-
-                total = max(1, len(pixels))
-                total_fg = max(1, total_foreground_pixels)
-
-                fire_ratio = red_fire_count / total
-                ground_dark_ratio = ground_dark_pit_count / total_fg
-                fg_tree_ratio = foreground_tree_count / total_fg
-                water_ratio = blue_water_count / total_fg
-
-                # Competitive Feature Ranking
-                candidates = []
-                if fire_ratio > 0.05:
-                    candidates.append(("fire_hazard", fire_ratio * 3.0)) # Highly weight fire
-                if ground_dark_ratio > 0.08:
-                    candidates.append(("open_manhole", ground_dark_ratio * 1.5))
-                if fg_tree_ratio > 0.15:
-                    # Penalize tree weight slightly so it doesn't accidentally override manhole in shadows
-                    candidates.append(("fallen_tree", fg_tree_ratio * 0.9))
-                if water_ratio > 0.08:
-                    candidates.append(("water_leakage", water_ratio * 1.8))
-                
-                if candidates:
-                    # Sort candidates by their adjusted ratio score
-                    candidates.sort(key=lambda x: x[1], reverse=True)
-                    best_match, best_score = candidates[0]
-                    
-                    info = CIVIC_CATEGORIES_MAP[best_match]
-                    conf = min(0.97, round(0.70 + (best_score * 0.8), 2))
-                    
-                    # Compute a fake bounding box for visual flair
-                    box_coords = [round(width * 0.15, 1), round(height * 0.2, 1), round(width * 0.85, 1), round(height * 0.9, 1)]
-                    annotated_b64 = self._draw_boxes(img, [{
-                        "box": box_coords,
-                        "label": info["label"],
-                        "confidence": conf,
-                        "priority": info["priority"]
-                    }])
-                    
-                    return {
-                        "detected_issue": info["label"],
-                        "confidence_score": conf,
-                        "suggested_category": info["category"],
-                        "priority": info["priority"],
-                        "labels": [info["label"], "Smart Vision Heuristic (Dominant Feature)"],
-                        "bounding_boxes": [{
-                            "box": box_coords,
-                            "label": info["label"],
-                            "confidence": conf,
-                            "priority": info["priority"]
-                        }],
-                        "model_source": f"{source}_smart_heuristic",
-                        "annotated_image_b64": annotated_b64,
-                        "total_detections": 1
-                    }
-
-        except Exception as err:
-            print(f"[WARN] Vision classifier exception: {err}")
-
-        # Fallback to heuristic analysis
-        return self._heuristic_analysis(file_bytes)
+    def _honest_low_confidence_result(self, source: str, clip_score: float) -> Dict[str, Any]:
+        """
+        Return an explicit low-confidence generic result when no model is
+        sufficiently confident to name a specific civic issue.
+        Prevents fabricating a wrong, high-confidence answer.
+        """
+        if clip_score > 0:
+            note = (
+                f"CLIP zero-shot best confidence was {clip_score:.0%} — below the 35% threshold. "
+                "No specific civic issue could be reliably identified from this image. "
+                "Please describe the issue manually in the form below."
+            )
+        else:
+            note = (
+                "CLIP model not yet loaded or unavailable. "
+                "Please retry in a moment for AI-assisted detection."
+            )
+        return {
+            "detected_issue": "General Civic Issue / Unclassified",
+            "confidence_score": round(max(0.0, clip_score), 3),
+            "suggested_category": "General Infrastructure",
+            "priority": "medium",
+            "labels": ["Unclassified Civic Issue"],
+            "bounding_boxes": [],
+            "model_source": f"{source}_unclassified",
+            "annotated_image_b64": None,
+            "total_detections": 0,
+            "detection_note": note,
+        }
 
     def _heuristic_analysis(self, file_bytes: bytes) -> Dict[str, Any]:
         """
-        Deterministic heuristic engine — used when YOLO is unavailable.
-        Produces realistic demo output based on image file size so results
-        are consistent for the same input.
+        Conservative fallback used only when the AI model has not yet finished
+        loading.  Returns an honest zero-confidence generic result rather than
+        a misleading specific answer picked by file-size modulo arithmetic.
         """
-        content_len = len(file_bytes)
-        keys = list(CIVIC_CATEGORIES_MAP.keys())
-        selected_key = keys[content_len % len(keys)]
-        info = CIVIC_CATEGORIES_MAP[selected_key]
-
-        # Confidence in range 0.72 – 0.93 (lower than real model to distinguish)
-        seed_val = (content_len * 31) % 22
-        confidence = round(0.72 + (seed_val * 0.01), 2)
-
         return {
-            "detected_issue": info["label"],
-            "confidence_score": confidence,
-            "suggested_category": info["category"],
-            "priority": info["priority"],
-            "labels": [info["label"], "Civic Infrastructure Defect"],
-            "bounding_boxes": [
-                {
-                    "box": [120.5, 80.2, 450.0, 390.8],
-                    "label": info["label"],
-                    "confidence": confidence,
-                    "priority": info["priority"],
-                }
-            ],
-            "model_source": "heuristic",
+            "detected_issue": "General Civic Issue / Unclassified",
+            "confidence_score": 0.0,
+            "suggested_category": "General Infrastructure",
+            "priority": "medium",
+            "labels": ["Unclassified — AI model not yet ready"],
+            "bounding_boxes": [],
+            "model_source": "model_loading",
             "annotated_image_b64": None,
-            "total_detections": 1,
+            "total_detections": 0,
+            "detection_note": (
+                "The AI model is still initialising. "
+                "Please wait a few seconds and retry for accurate YOLO detection."
+            ),
         }
 
 

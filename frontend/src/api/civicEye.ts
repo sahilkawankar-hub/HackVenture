@@ -16,6 +16,7 @@ export async function detectCivicIssue(imageFile: File): Promise<AIDetectionResu
     headers: {
       "Content-Type": "multipart/form-data",
     },
+    timeout: 120000, // 2 minutes for first-time AI model loading
   });
   return response.data;
 }
